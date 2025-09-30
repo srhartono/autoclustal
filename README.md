@@ -345,41 +345,10 @@ phylo = PhylogeneticAnalyzer()
 sequences = seq_handler.load_sequences(['input.fasta'])
 alignment = aligner.align_sequences(sequences)
 tree = phylo.build_tree(alignment)
-
-# Continue with analysis...
 ```
 
-## Contributing
-
-This is an auto-generated bioinformatics pipeline. For improvements:
-
-1. Test with diverse sequence datasets
-2. Add support for additional alignment tools
-3. Implement advanced phylogenetic methods
-4. Enhance visualization options
-5. Optimize performance for large datasets
-
-## Citation
-
-If you use AutoClustal in your research, please cite:
-
-```
-AutoClustal: Comprehensive Sequence Analysis Pipeline
-Generated: September 30, 2025
-```
 
 ## License
 
 This project is provided as-is for educational and research purposes.
 
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Verify all dependencies are installed
-3. Test with example data first
-4. Check log files for detailed error messages
-
----
-
-**Note**: This is an automatically generated pipeline. While comprehensive, it may require customization for specific use cases. Always validate results with domain expertise.
