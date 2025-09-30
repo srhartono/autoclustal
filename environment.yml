@@ -1,0 +1,33 @@
+# Conda Environment for AutoClustal
+name: autoclustal
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  # Bioinformatics tools
+  - muscle=5.1
+  - clustalw=2.1
+  - mafft=7.505
+  - blast=2.13.0
+  # Python packages
+  - biopython=1.81
+  - matplotlib=3.7.0
+  - seaborn=0.12.0
+  - pandas=2.0.0
+  - numpy=1.24.0
+  - scikit-learn=1.3.0
+  - scipy=1.10.0
+  - plotly=5.15.0
+  - requests=2.31.0
+  - beautifulsoup4=4.12.0
+  - lxml=4.9.0
+  - tqdm=4.65.0
+  # Nextflow
+  - nextflow=23.04.0
+  # Additional tools
+  - pip:
+    - dendropy>=4.6.0
+    - ete3>=3.1.3
