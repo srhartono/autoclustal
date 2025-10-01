@@ -10,7 +10,7 @@ AutoClustal is a powerful bioinformatics tool that performs comprehensive sequen
 - **Phylogenetic Analysis**: Distance-based (NJ, UPGMA) and ML methods
 - **Sequence Clustering**: Multiple clustering algorithms with representative selection
 - **Database Searches**: BLAST and BLAT integration for functional annotation
-- **Statistical Analysis**: PCA, t-SNE, and comprehensive reporting
+- **Statistical Analysis**: PCA, t-SNE, and comprehensive reporting (WIP)
 - **Advanced Visualizations**: 
   - Phylogenetic tree plots
   - Organism distribution bar charts
@@ -120,7 +120,7 @@ python autoclustal.py -i sequences.fasta -o results/
 python autoclustal.py -i sequences.fasta -o results/ --blast --pca
 ```
 
-### Option 2: Nextflow Pipeline
+### Option 2: Nextflow Pipeline (WIP)
 
 ```bash
 # Basic Nextflow run
@@ -349,6 +349,25 @@ tree = phylo.build_tree(alignment)
 
 
 ## License
+MIT License
 
-This project is provided as-is for educational and research purposes.
+Copyright (C) 2025 Stella R Hartono
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
