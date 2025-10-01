@@ -29,6 +29,58 @@ plt.rcParams['figure.dpi'] = 300
 plt.rcParams['savefig.dpi'] = 300
 plt.rcParams['font.size'] = 10
 
+
+# ---- Compact regexes by category (case-insensitive) ----
+GROUP_PATTERNS = {
+    "eukaryotic": r"(?:eukaryotic|eukaryote|eukaryota)",
+    "prokaryotic": r"(?:prokaryotic|prokaryote|prokaryota)",
+    "synthetic": r"(?:synthetic|vector|plasmid|artificial|construct|chimera|chimeric)",
+
+    "bacteria": r"(?:bacter|philus |zobium |coccus|cillus|ella|zoogloea |myco|spir|archae|therm|methanogen|halobacterium|"
+                r"pseudomonas|escherichia|shigella|vibrio|campylobacter|onia |bacter|proteus|neisseria|clostridium)",
+
+    "virus": r"(?:virus|viridae|virinae|phage|corona|sars|mers|orthomyxo|influenza|adeno|retro|"
+             r"herpes|papilloma|noro|rota|rhino|paramyxo|hepat|pox|flavi|filo|arena|reo|bunya|"
+             r"hiv|ebola|zika|dengue)",
+
+    "fungi": r"(?:fung|yeast|myces|mycota|mycet|aspergill|candida|neurospor|penicill|trichophyt|"
+             r"cryptococc|histoplas|blastomy|coccidio|saccharo|schizo|pichia|kluyvero|mucor|zygo)",
+
+    "plants": r"(?:viridiplant|plantae|arabidops|oryza|rice|triticum|wheat|zea|maize|glycine|soybean|"
+              r"hordeum|barley|avena|oat|sorghum|solanum|potato|tomato|gossypium|cotton|populus|"
+              r"brassica|spinacia|spinach|lactuca|lettuce|cucumis|cucumber|melon|vitis|grape|musa|"
+              r"banana|malus|apple|pyrus|pear|prunus|peach)",
+
+    "mammals": r"(?:homo[_\s]?sapiens|h\.?\s?sapiens|human|mus\s?musculus|mouse|murine|"
+               r"rattus\s?norvegicus|rat|canis|dog|felis|cat|bos|cow|sus|pig|equus|horse|"
+               r"ovis|sheep|capra|goat|oryctolagus|rabbit|macaque|macaca|chimp|"
+               r"pan\s?troglodytes|gorilla|pongo|orangutan|dolphin|delphin|whale|balaen|"
+               r"elephant|loxodonta|monkey)",
+    "rDNA": r"(?:rdna|rrna|ribosomal\s?(dna|rna))"
+}
+
+COMPILED = {k: re.compile(v, flags=re.IGNORECASE) for k, v in GROUP_PATTERNS.items()}
+
+SEQTYPE_PATTERNS = {
+    "rDNA": r"(?:rdna|rrna|ribosomal\s?(dna|rna))",
+    "satellite": r"satellite",
+    "repeat": r"repeat",
+    "genome": r"(?:whole\s?genome|complete sequence|genome)",
+    "telomeric": r"telomer",
+    "plasmid": r"plasmid",
+    "mitochondrial": r"(?:mitochondria|mitochondrial|mtDNA|mt-?)",
+    "chloroplast": r"(?:chloroplast|plastid|cpDNA|cp-[A-Za-z0-9])",
+    "contig": r"contig",
+    "scaffold": r"scaffold",
+    "transposon": r"(?:transposon|retrotransposon|insertion\ssequence|is\d+)",
+    "vector": r"(?:cloning\s?vector|expression\s?vector|vector)",
+    "synthetic": r"(?:synthetic|artificial|construct|chimera|chimeric)",
+    "chromosome": r"(?:chromosome|chr\s?\d+|chromatid|linkage\s?group|lg\s?\d+)",
+    "gene": r"(?:gene|cds|coding\s?sequence|open\s?reading\s?frame|orf)",
+    "mrna": r"(?:mrna|messenger\s?rna)",
+}
+SEQTYPE_COMPILED = {k: re.compile(v, re.IGNORECASE) for k, v in SEQTYPE_PATTERNS.items()}
+
 class AutoClustalVisualizer:
     """
     Comprehensive visualizer for AutoClustal results.
@@ -39,24 +91,28 @@ class AutoClustalVisualizer:
         self.results_dir = Path(results_dir)
         self.output_dir = self.results_dir / "visualizations"
         self.output_dir.mkdir(exist_ok=True)
-        
+        self.organism_categories = {}
         # Model organism categories
-        self.organism_categories = {
-            'Human': ['homo sapiens', 'human', 'h. sapiens', 'homo_sapiens'],
-            'Mouse': ['mus musculus', 'mouse', 'm. musculus', 'mus_musculus'],
-            'Rat': ['rattus norvegicus', 'rat', 'r. norvegicus', 'rattus_norvegicus'],
-            'C. elegans': ['caenorhabditis elegans', 'c. elegans', 'c_elegans', 'nematode'],
-            'Drosophila': ['drosophila melanogaster', 'd. melanogaster', 'fruit fly', 'drosophila'],
-            'Zebrafish': ['danio rerio', 'zebrafish', 'd. rerio', 'danio_rerio'],
-            'Arabidopsis': ['arabidopsis thaliana', 'a. thaliana', 'arabidopsis'],
-            'Yeast': ['saccharomyces cerevisiae', 's. cerevisiae', 'yeast', 'baker yeast'],
-            'E. coli': ['escherichia coli', 'e. coli', 'e_coli'],
-            'Bacteria': ['bacteria', 'bacterial', 'bacillus', 'streptococcus', 'staphylococcus'],
-            'Virus': ['virus', 'viral', 'phage', 'coronavirus', 'influenza'],
-            'Fungi': ['fungi', 'fungal', 'candida', 'aspergillus', 'neurospora'],
-            'Plant': ['plant', 'plantae', 'viridiplantae', 'rice', 'wheat', 'maize'],
-            'Other': []  # Will be filled with remaining organisms
-        }
+        for category in COMPILED:
+            self.organism_categories[category] = []  # Initialize list for each category
+
+        
+        # {
+        #     'Human': ['homo sapiens', 'human', 'h. sapiens', 'homo_sapiens'],
+        #     'Mouse': ['mus musculus', 'mouse', 'm. musculus', 'mus_musculus'],
+        #     'Rat': ['rattus norvegicus', 'rat', 'r. norvegicus', 'rattus_norvegicus'],
+        #     'C. elegans': ['caenorhabditis elegans', 'c. elegans', 'c_elegans', 'nematode'],
+        #     'Drosophila': ['drosophila melanogaster', 'd. melanogaster', 'fruit fly', 'drosophila'],
+        #     'Zebrafish': ['danio rerio', 'zebrafish', 'd. rerio', 'danio_rerio'],
+        #     'Arabidopsis': ['arabidopsis thaliana', 'a. thaliana', 'arabidopsis'],
+        #     'Yeast': ['saccharomyces cerevisiae', 's. cerevisiae', 'yeast', 'baker yeast'],
+        #     'E. coli': ['escherichia coli', 'e. coli', 'e_coli'],
+        #     'Bacteria': ['bacteria', 'bacterial', 'bacillus', 'streptococcus', 'staphylococcus'],
+        #     'Virus': ['virus', 'viral', 'phage', 'coronavirus', 'influenza'],
+        #     'Fungi': ['fungi', 'fungal', 'candida', 'aspergillus', 'neurospora'],
+        #     'Plant': ['plant', 'plantae', 'viridiplantae', 'rice', 'wheat', 'maize'],
+        #     'Other': []  # Will be filled with remaining organisms
+        # }
     
     def load_data(self):
         """Load all necessary data files."""
@@ -77,76 +133,198 @@ class AutoClustalVisualizer:
         else:
             print("⚠ Tree file not found, skipping tree visualization")
             self.tree_newick = None
+
+    def _get_seqtype(self, seq_id) -> str:
+        s = seq_id.lower()
+        for label, pattern in SEQTYPE_COMPILED.items():
+            if pattern.search(s):
+                return(label)
+        return 'unknown'
     
-    def categorize_organisms(self) -> Dict[str, List[str]]:
-        """Categorize organisms into model organism groups."""
-        organism_counts = {}
+    def _get_canonical(self, seq_id) -> str:
+        s = seq_id.lower()
+        if re.search(r'\b(human|homo[_\s]?sapiens|h\.?\s?sapiens)\b', s):
+            return 'homo sapiens'
+        if 'mouse' in s:
+            return 'mus musculus'
+        if 'rat' in s:
+            return 'rattus norvegicus'
+        if 'dog' in s:
+            return 'canis familiaris'
+        if any(x in s for x in ('fish', 'danio', 'rerio', 'zebrafish')):
+            return 'danio rerio'
+        if 'chicken' in s or 'gallus' in s:
+            return 'gallus gallus'
+        if 'frog' in s or 'xenopus' in s:
+            return 'xenopus laevis'
+        if 'yeast' in s or 'saccharomyces' in s:
+            return 'saccharomyces cerevisiae'
+        if any(x in s for x in ('ecoli', 'coli', 'escherichia')):
+            return 'escherichia coli'
+        return seq_id
+
+    def _get_latin_name(self, header: str) -> str:
+        """
+        Extract the Latin binomial name from an NCBI BLAST header or FASTA description.
+        Returns 'unknown' if not found.
+        """
+        # print(f"_get_latin_name: doing {header}")
+        if not header:
+            # print(f"Header is not present")
+            return self._get_canonical(header)
+
+        name = header
+        foundmatch = False
+
+        if "no significant" in header.lower():
+            # print(f"{header} 0 No significant hits")
+            return header
         
-        # Initialize categories
-        for category in self.organism_categories:
-            organism_counts[category] = []
+        header = re.sub(r'^[A-Z a-z_]+:\s*', '', header)  # Normalize whitespace
+
+        m = re.search(r'^([a-zA-Z]+ [a-zA-Z]+ )', header)
+        if m:
+            foundmatch = True
+            # print(f"{header} 1 Matched species: {m.group(0)}")
+            name = m.group(0)
+
         
-        # Process each sequence
-        for idx, row in self.summary_df.iterrows():
-            organism = str(row.get('organism', 'Unknown')).lower().strip()
-            
-            # If no organism data or unknown, try to infer from sequence ID (demo mode)
-            if organism in ['unknown', 'not searched', 'no significant hits', '', 'nan']:
-                seq_id = str(row.get('sequence_id', '')).lower()
-                organism = self._infer_organism_from_id(seq_id)
-            
-            if organism in ['unknown', 'not searched', 'no significant hits', '']:
-                continue
-            
-            # Find category for this organism
-            categorized = False
-            for category, keywords in self.organism_categories.items():
-                if category == 'Other':
-                    continue
-                
-                for keyword in keywords:
-                    if keyword in organism:
-                        organism_counts[category].append(organism)
-                        categorized = True
-                        break
-                
-                if categorized:
-                    break
-            
-            # Add to 'Other' if not categorized
-            if not categorized:
-                organism_counts['Other'].append(organism)
+        # Case 1: Brackets [Homo sapiens]
+        m = re.search(r'\[([A-Z][a-z]+ [a-z]+)\]', header)
+        if m:
+            foundmatch = True
+            # print(f"{header} 1 Matched Genus species: {m.group(1)}")
+            name = m.group(1)
+
+        # Case 2: OS=Homo sapiens
+        m = re.search(r'OS=([A-Z][a-z]+ [a-z]+)', header)
+        if m:
+            foundmatch = True
+            # print(f"{header} 2 Matched Genus species: {m.group(1)}")
+            name = m.group(1)
+
+        m = re.match(r'^([A-Za-z ]+\s+[a-zA-Z]*sp)\.', header)
+        if m:
+            foundmatch = True
+            # print(f"{header} 3 Matched Genus species: {m.group(1)}")
+            name = m.group(1)
+
+
+        # Try Genus species/sp. at beginning of description
+        # (stop before "strain|chromosome|plasmid|contig|complete")
+        m = re.match(r'([A-Z][a-z]+(?:\s(?:sp\.|[a-z]+)))', header)
+        if m:
+            foundmatch = True
+            # print(f"{header} 3 Matched Genus species: {m.group(1)}")
+            name = m.group(1)
+    
+        name = self._get_canonical(name)
+    
+        # if not foundmatch:
+            # print(f"{header} 4 Can't find!")
+            # print(f"_get_canonical: returning {name}")
         
-        return organism_counts
+        return(name)
+
+    def _get_category(self, seq_id: str) -> str:
+        s = seq_id.lower()
+        for category in COMPILED:
+            if COMPILED[category].search(s):
+                return category
+        return "unknown"
     
     def _infer_organism_from_id(self, seq_id: str) -> str:
-        """Infer organism from sequence ID for demo purposes."""
-        seq_id = seq_id.lower()
+
+        """Infer organism from sequence ID using regex patterns."""
+        s = seq_id.lower()
+        category = self._get_category(s)
+        seqtype = self._get_seqtype(s)
+        canonical = self._get_latin_name(s)
+        return category, canonical, seqtype
+
+    def categorize_organisms(self) -> Dict[str, List[str]]:
+        print(self.summary_df.head())
+        #                               sequence_id   cluster_id  sequence_length                              description                                   best_match_title  best_match_evalue organism
+        # 0  LH00516:376:233737LT3:2:1103:1203:10896  cluster_168              150  LH00516:376:233737LT3:2:1103:1203:10896   Ralstonia sp. CP chromosome 1, complete sequence       1.614140e-68  Unknown
+        # 1  LH00516:376:233737LT3:2:1103:3367:10896  cluster_167              150  LH00516:376:233737LT3:2:1103:3367:10896                                No significant hits                NaN  Unknown
+        # 2  LH00516:376:233737LT3:2:1103:3515:10896  cluster_184              150  LH00516:376:233737LT3:2:1103:3515:10896  Leifsonia sp. 509MF genome assembly, chromosom...       2.247660e-22  Unknown
+        # 3  LH00516:376:233737LT3:2:1103:4864:10896  cluster_183              150  LH00516:376:233737LT3:2:1103:4864:10896  Ramlibacter tataouinensis strain DMF-7 chromos...       1.617000e-30  Unknown
+        # 4  LH00516:376:233737LT3:2:1103:5382:10896  cluster_117              150  LH00516:376:233737LT3:2:1103:5382:10896  Eukaryotic synthetic construct chromosome 16 >...       6.863510e-67  Unknown
+
+        """Categorize organisms into model organism categorys and annotate seqtype."""
+        organism_counts: Dict[str, List[str]] = {}
+
+        # Ensure required columns exist
+        if 'organism' not in self.summary_df.columns:
+            self.summary_df['organism'] = 'unknown'
+        if 'sequence_id' not in self.summary_df.columns:
+            self.summary_df['sequence_id'] = ''
+        if 'seqtype' not in self.summary_df.columns:
+            self.summary_df['seqtype'] = 'unknown'
+        if 'category' not in self.summary_df.columns:
+            self.summary_df['category'] = 'Other'
+
+        # Initialize counts container
+        for category in COMPILED:
+            organism_counts[category] = []
         
-        # Demo organism inference based on sequence names
-        if 'human' in seq_id:
-            return 'homo sapiens'
-        elif 'mouse' in seq_id:
-            return 'mus musculus'
-        elif 'rat' in seq_id:
-            return 'rattus norvegicus'
-        elif 'dog' in seq_id:
-            return 'canis familiaris'
-        elif 'fish' in seq_id:
-            return 'danio rerio'
-        elif 'chicken' in seq_id:
-            return 'gallus gallus'
-        elif 'frog' in seq_id:
-            return 'xenopus laevis'
-        elif 'plant' in seq_id:
-            return 'arabidopsis thaliana'
-        elif 'yeast' in seq_id:
-            return 'saccharomyces cerevisiae'
-        elif 'ecoli' in seq_id or 'coli' in seq_id:
-            return 'escherichia coli'
-        else:
-            return 'unknown'
+        # for category in self.organism_categories:
+        #     organism_counts[category] = []
     
+        # for category in self.organism_categories:
+        #     organism_counts[category] = []
+    # 
+    #         # print(self.summary_df.head())
+        # print(organism_counts.keys())
+        # Pass 1: annotate each row with seqtype + category/organism
+        updated_rows = []
+        for idx, row in self.summary_df.iterrows():
+            # seq_id = str(row.get('sequence_id', '') or '')
+            seq_id = str(row.get('best_match_title','') or '')
+            org_str = str(row.get('organism', 'unknown') or 'unknown').strip()
+
+            # seqtype detection first (independent label)
+            # seqtype = self._infer_seqtype(seq_id)
+            # organism/category
+            category, canonical, seqtype = 'unknown', seq_id, 'unknown'
+            if org_str.lower() in ['unknown', 'not searched', 'no significant hits', '', 'nan']:
+                category, canonical, seqtype = self._infer_organism_from_id(seq_id)
+                # print(f"Inferred {seq_id}: category={category}, canonical={canonical}, seqtype={seqtype})")
+
+            # write back
+            self.summary_df.at[idx, 'seqtype'] = seqtype
+            # Prefer canonical inferred organism if the original was unknown
+            # if org_str.lower() in ['unknown', 'not searched', 'no significant hits', '', 'nan'] and canonical != 'unknown':
+            self.summary_df.at[idx, 'organism'] = canonical
+            # Always set a category
+            self.summary_df.at[idx, 'category'] = category
+            if category not in self.organism_categories:
+                self.organism_categories[category] = []
+            self.organism_categories[category].append(canonical)
+            # print(self.summary_df.at[idx, 'organism'])
+            # Count by category (store the organism string for your later plots)
+            # print(f"here1 appending {category} {canonical}")
+            if category not in organism_counts:
+                organism_counts[category] = []
+            organism_counts[category].append(canonical)
+            # .append(self.summary_df.at[idx, 'organism'])
+            # print("here")
+        
+        # print(organism_counts)
+        # print(self.organism_categories)
+        # print(organism_counts)
+        # sys.exit(1)
+
+        # for category in self.summary_df['category'].unique():
+        #     organism_counts[category] = 0
+        # for row in self.summary_df.iterrows():            
+        #     category_str = str(row[1].get('category', '')).strip()
+        #     if category_str not in organism_counts:
+        #         organism_counts[category_str] = 0
+        #     organism_counts[category_str] = organism_counts[category_str] + 1
+        # print(organism_counts)
+        return organism_counts
+
     def create_organism_barplot(self):
         """Create comprehensive organism distribution bar plots."""
         print("Creating organism distribution plots...")
@@ -154,6 +332,7 @@ class AutoClustalVisualizer:
         # Categorize organisms
         organism_counts = self.categorize_organisms()
         
+        # sys.exit(1)
         # Count sequences per category
         category_counts = {}
         for category, organisms in organism_counts.items():
@@ -195,7 +374,7 @@ class AutoClustalVisualizer:
         # 2. Pie Chart of Organism Distribution
         if len(categories_sorted) > 1:
             wedges, texts, autotexts = ax2.pie(counts_sorted, labels=categories_sorted, autopct='%1.1f%%',
-                                              colors=colors, startangle=90)
+                                                colors=colors, startangle=90)
             ax2.set_title('Organism Distribution (Percentage)', fontweight='bold')
             
             # Make percentage text bold
@@ -219,13 +398,13 @@ class AutoClustalVisualizer:
             
             # Get top 15 individual organisms
             top_organisms = sorted(organism_individual_counts.items(), 
-                                 key=lambda x: x[1], reverse=True)[:15]
+                                    key=lambda x: x[1], reverse=True)[:15]
             
             if top_organisms:
                 org_names, org_counts = zip(*top_organisms)
                 
                 bars3 = ax3.barh(range(len(org_names)), org_counts, 
-                               color=plt.cm.viridis(np.linspace(0, 1, len(org_names))))
+                                color=plt.cm.viridis(np.linspace(0, 1, len(org_names))))
                 ax3.set_yticks(range(len(org_names)))
                 ax3.set_yticklabels([name.title() for name in org_names])
                 ax3.set_xlabel('Number of Sequences')
@@ -253,10 +432,10 @@ class AutoClustalVisualizer:
         ax4.axis('tight')
         ax4.axis('off')
         table = ax4.table(cellText=summary_data,
-                         colLabels=['Metric', 'Count'],
-                         cellLoc='center',
-                         loc='center',
-                         colWidths=[0.6, 0.3])
+                            colLabels=['Metric', 'Count'],
+                            cellLoc='center',
+                            loc='center',
+                            colWidths=[0.6, 0.3])
         table.auto_set_font_size(False)
         table.set_fontsize(11)
         table.scale(1, 1.5)
@@ -292,6 +471,59 @@ class AutoClustalVisualizer:
         
         return category_counts
     
+    def _replace_tree_labels_with_organisms(self):
+        """Replace seq_<number> labels in tree with organism names from summary_df."""
+        if not hasattr(self, 'summary_df') or self.summary_df is None:
+            print("⚠ No summary data available for tree label replacement")
+            return self.tree_newick
+        
+        # Create mapping from sequence index to organism name
+        seq_to_organism = {}
+        
+        # Method 1: Try to extract sequence index from sequence_id if it contains seq_<number>
+        for idx, row in self.summary_df.iterrows():
+            cluster_id = str(row.get('cluster_id', ''))
+            organism = str(row.get('organism', 'unknown'))
+            # print(organism)
+            # Look for cluster_<number> pattern in cluster_id
+            seq_match = re.search(r'cluster_(\d+)', cluster_id)
+            if seq_match:
+                seq_num = seq_match.group(1)
+                seq_to_organism[f"seq_{seq_num}"] = organism
+        
+        # Method 2: If no seq_<number> found in cluster_id, use dataframe index
+        if not seq_to_organism:
+            print("⚠ No seq_<number> patterns found in cluster_id, using dataframe index")
+            for idx, row in self.summary_df.iterrows():
+                organism = str(row.get('organism', 'unknown'))
+                seq_to_organism[f"seq_{idx}"] = organism
+        
+        # Method 3: If organism column has 'unknown' values, try to use best_match_title
+        for seq_label, organism in seq_to_organism.items():
+            if organism.lower() in ['unknown', 'not searched', 'no significant hits', '', 'nan']:
+                # Find the corresponding row and use best_match_title
+                seq_num = seq_label.split('_')[1]
+                for idx, row in self.summary_df.iterrows():
+                    if (f"seq_{idx}" == seq_label or 
+                        re.search(rf'seq_{seq_num}', str(row.get('cluster_id', '')))):
+                        best_match = str(row.get('best_match_title', 'unknown'))
+                        if best_match and best_match.lower() not in ['unknown', 'no significant hits', 'nan']:
+                            # Extract organism name from best_match_title
+                            organism_from_blast = self._get_latin_name(best_match)
+                            seq_to_organism[seq_label] = organism_from_blast
+                        break
+        
+        # Replace seq_<number> labels in tree with organism names
+        modified_tree = self.tree_newick
+        for seq_label, organism in seq_to_organism.items():
+            # Clean up organism name for tree display
+            clean_organism = organism.replace(' ', '_').replace('(', '').replace(')', '')
+            clean_organism = re.sub(r'[^\w\-_.]', '', clean_organism)  # Remove special chars
+            modified_tree = modified_tree.replace(seq_label, clean_organism)
+        
+        print(f"✓ Replaced {len(seq_to_organism)} sequence labels with organism names")
+        return modified_tree
+
     def create_tree_visualization(self):
         """Create phylogenetic tree visualization."""
         if not self.tree_newick:
@@ -300,17 +532,21 @@ class AutoClustalVisualizer:
         
         print("Creating phylogenetic tree visualization...")
         
+        # Replace seq_<number> with organism names from summary_df
+        tree_with_organisms = self._replace_tree_labels_with_organisms()
+        
         try:
             # Try to use BioPython for tree visualization
             from Bio import Phylo
             from io import StringIO
             
             # Parse tree
-            tree_handle = StringIO(self.tree_newick)
+            tree_handle = StringIO(tree_with_organisms)
             tree = Phylo.read(tree_handle, 'newick')
             
             # Create tree plot
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            # print(len(tree.get_terminals()))
+            fig, ax = plt.subplots(1, 1, figsize=(24, min(50, len(tree.get_terminals()) / 5)))
             
             Phylo.draw(tree, axes=ax, do_show=False)
             ax.set_title('Phylogenetic Tree', fontsize=14, fontweight='bold')
@@ -331,9 +567,12 @@ class AutoClustalVisualizer:
         except Exception as e:
             print(f"⚠ Tree visualization failed: {e}")
             self._create_basic_tree_plot()
-    
+
     def _create_basic_tree_plot(self):
         """Create a basic tree representation when BioPython is not available."""
+        # Replace seq_<number> with organism names for display
+        tree_with_organisms = self._replace_tree_labels_with_organisms()
+        
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         
         ax.text(0.5, 0.6, 'Phylogenetic Tree', ha='center', va='center', 
@@ -341,8 +580,8 @@ class AutoClustalVisualizer:
         ax.text(0.5, 0.5, f'Newick Format:', ha='center', va='center', 
                 fontsize=12, fontweight='bold')
         
-        # Display truncated Newick string
-        newick_display = self.tree_newick[:200] + "..." if len(self.tree_newick) > 200 else self.tree_newick
+        # Display truncated Newick string with organism names
+        newick_display = tree_with_organisms[:200] + "..." if len(tree_with_organisms) > 200 else tree_with_organisms
         ax.text(0.5, 0.4, newick_display, ha='center', va='center', 
                 fontsize=8, family='monospace', wrap=True)
         
@@ -362,7 +601,7 @@ class AutoClustalVisualizer:
         
         #plt.show()
         plt.close()
-    
+
     def create_cluster_analysis(self):
         """Create cluster analysis visualization."""
         print("Creating cluster analysis...")
@@ -402,7 +641,7 @@ class AutoClustalVisualizer:
         
         # Create detailed cluster analysis plot
         self._create_detailed_cluster_plot(cluster_counts, cluster_info)
-    
+
     def _create_simple_cluster_plot(self, cluster_counts, cluster_info):
         """Create simple cluster analysis plot with best match titles."""
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
@@ -415,7 +654,7 @@ class AutoClustalVisualizer:
         
         # Create bar plot
         bars = ax.bar(range(len(cluster_counts)), cluster_counts.values, 
-                     color='skyblue', alpha=0.8, edgecolor='black')
+                        color='skyblue', alpha=0.8, edgecolor='black')
         
         ax.set_title('Clusters with Best Match Annotations', fontweight='bold', fontsize=14)
         ax.set_xlabel('Cluster ID + Best Match Title')
@@ -426,7 +665,7 @@ class AutoClustalVisualizer:
         # Add value labels on bars
         for i, (bar, count) in enumerate(zip(bars, cluster_counts.values)):
             ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
-                   str(count), ha='center', va='bottom', fontweight='bold')
+                    str(count), ha='center', va='bottom', fontweight='bold')
         
         plt.tight_layout()
         
@@ -436,7 +675,7 @@ class AutoClustalVisualizer:
         print(f"✓ Simple cluster analysis saved: {cluster_path}")
         
         plt.close()
-    
+
     def _create_detailed_cluster_plot(self, cluster_counts, cluster_info):
         """Create detailed cluster analysis with multiple views."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(90, 12))
@@ -479,7 +718,7 @@ class AutoClustalVisualizer:
         sorted_labels, sorted_cluster_ids, sorted_counts = zip(*sorted_items) if sorted_items else ([], [], [])
 
         bars1 = ax1.bar(range(len(sorted_counts)), sorted_counts, 
-                   color='skyblue', alpha=0.8, edgecolor='black')
+                    color='skyblue', alpha=0.8, edgecolor='black')
         ax1.set_title('Sequences per Cluster (with Best Match)', fontweight='bold')
         ax1.set_xlabel('Cluster ID + Annotation')
         ax1.set_ylabel('Number of Sequences')
@@ -489,12 +728,12 @@ class AutoClustalVisualizer:
         # Add value labels
         for i, (bar, count) in enumerate(zip(bars1, sorted_counts)):
             ax1.text(bar.get_x() + bar.get_width()/2., count + 0.1,
-                 str(count), ha='center', va='bottom', fontweight='bold')
+                    str(count), ha='center', va='bottom', fontweight='bold')
 
         # Save sorted plot with width == number of x axis items
         sorted_fig, sorted_ax = plt.subplots(figsize=(max(8, len(sorted_labels)), 6))
         sorted_bars = sorted_ax.bar(range(len(sorted_counts)), sorted_counts, 
-                       color='skyblue', alpha=0.8, edgecolor='black')
+                        color='skyblue', alpha=0.8, edgecolor='black')
         sorted_ax.set_title('Sequences per Cluster (Sorted by Annotation)', fontweight='bold')
         sorted_ax.set_xlabel('Cluster ID + Annotation')
         sorted_ax.set_ylabel('Number of Sequences')
@@ -502,7 +741,7 @@ class AutoClustalVisualizer:
         sorted_ax.set_xticklabels(sorted_labels, rotation=90, ha='right', fontsize=8)
         for i, (bar, count) in enumerate(zip(sorted_bars, sorted_counts)):
             sorted_ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
-                   str(count), ha='center', va='bottom', fontweight='bold')
+                    str(count), ha='center', va='bottom', fontweight='bold')
         plt.tight_layout()
         sorted_path = self.output_dir / 'cluster_analysis_sorted.png'
         sorted_fig.savefig(sorted_path, dpi=300, bbox_inches='tight')
@@ -514,7 +753,7 @@ class AutoClustalVisualizer:
         hist_labels, hist_counts = zip(*short_match_hist.items()) if short_match_hist else ([], [])
         hist_fig, hist_ax = plt.subplots(figsize=(max(8, len(hist_labels)), 6))
         hist_bars = hist_ax.bar(range(len(hist_counts)), hist_counts, 
-                       color='mediumseagreen', alpha=0.8, edgecolor='black')
+                        color='mediumseagreen', alpha=0.8, edgecolor='black')
         hist_ax.set_title('Clusters Grouped by Annotation (short_match)', fontweight='bold')
         hist_ax.set_xlabel('Annotation Category')
         hist_ax.set_ylabel('Number of Clusters')
@@ -522,7 +761,7 @@ class AutoClustalVisualizer:
         hist_ax.set_xticklabels(hist_labels, rotation=90, ha='right', fontsize=8)
         for i, (bar, count) in enumerate(zip(hist_bars, hist_counts)):
             hist_ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
-                 str(count), ha='center', va='bottom', fontweight='bold')
+                    str(count), ha='center', va='bottom', fontweight='bold')
         plt.tight_layout()
         hist_path = self.output_dir / 'cluster_annotation_histogram.png'
         hist_fig.savefig(hist_path, dpi=300, bbox_inches='tight')
@@ -541,7 +780,7 @@ class AutoClustalVisualizer:
         for short_match in labels:
             short_match_counts[short_match] = short_match_counts.get(short_match, 0) + 1
 
-        # Only show top N categories, group rest as 'Other'
+        # Only show top N categories, category rest as 'Other'
         N = 8
         sorted_short_matches = sorted(short_match_counts.items(), key=lambda x: x[1], reverse=True)
         top_short_matches = sorted_short_matches[:N]
@@ -554,7 +793,7 @@ class AutoClustalVisualizer:
 
         colors_pie = plt.cm.Set3(np.linspace(0, 1, len(pie_labels)))
         wedges, texts, autotexts = ax3.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%',
-                   colors=colors_pie, startangle=90)
+                    colors=colors_pie, startangle=90)
         ax3.set_title('Clusters by Annotation Category', fontweight='bold')
         # Make percentage text bold
         for autotext in autotexts:
@@ -564,7 +803,7 @@ class AutoClustalVisualizer:
         # Save pie chart separately
         pie_fig, pie_ax = plt.subplots(figsize=(8, 8))
         pie_ax.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%',
-               colors=colors_pie, startangle=90)
+                colors=colors_pie, startangle=90)
         pie_ax.set_title('Clusters by Annotation Category', fontweight='bold')
         pie_path = self.output_dir / 'cluster_annotation_pie.png'
         plt.savefig(pie_path, dpi=300, bbox_inches='tight')
@@ -618,10 +857,10 @@ class AutoClustalVisualizer:
         ax4.axis('tight')
         ax4.axis('off')
         table = ax4.table(cellText=summary_data,
-                         colLabels=['Metric', 'Value'],
-                         cellLoc='center',
-                         loc='center',
-                         colWidths=[0.6, 0.4])
+                            colLabels=['Metric', 'Value'],
+                            cellLoc='center',
+                            loc='center',
+                            colWidths=[0.6, 0.4])
         table.auto_set_font_size(False)
         table.set_fontsize(10)
         table.scale(1, 1.5)
@@ -648,7 +887,7 @@ class AutoClustalVisualizer:
         print(f"✓ Detailed cluster analysis saved: {cluster_path}")
         
         plt.close()
-    
+
     def generate_summary_report(self, organism_counts: Dict[str, int]):
         """Generate a comprehensive text summary report."""
         print("Generating summary report...")
@@ -684,7 +923,7 @@ class AutoClustalVisualizer:
             report_lines.append("No organism data available")
         
         # Add cluster information if available
-        if 'cluster_id' in self.summary_df.columns:
+        # if 'cluster_id' in self.summary_df.columns:
             cluster_counts = self.summary_df['cluster_id'].value_counts()
             report_lines.extend([
                 "",
@@ -701,7 +940,7 @@ class AutoClustalVisualizer:
             "-" * 20,
             f"• Organism Analysis: {self.output_dir}/organism_analysis.png",
             f"• Phylogenetic Tree: {self.output_dir}/phylogenetic_tree.png",
-            f"• Cluster Analysis: {self.output_dir}/cluster_analysis_detailed.png",
+            # f"• Cluster Analysis: {self.output_dir}/cluster_analysis_detailed.png",
             f"• Summary Report: {self.output_dir}/analysis_summary.txt",
             "",
             "=" * 60
@@ -716,7 +955,7 @@ class AutoClustalVisualizer:
         
         # Also print to console
         print('\n'.join(report_lines))
-    
+
     def run_visualization(self):
         """Run complete visualization pipeline."""
         print("Starting AutoClustal Visualization Pipeline...")
@@ -724,15 +963,16 @@ class AutoClustalVisualizer:
         
         # Load data
         self.load_data()
-        
+        # Replace seq_<number> in tree_newick with organism names from summary_df
+        # Build mapping: seq_<number> -> organism
         # Create visualizations
         organism_counts = self.create_organism_barplot()
         self.create_tree_visualization()
-        self.create_cluster_analysis()
+        # self.create_cluster_analysis()
         
         # Generate summary report
         self.generate_summary_report(organism_counts)
-        
+
         print("\n" + "=" * 50)
         print("✓ Visualization pipeline completed successfully!")
         print(f"✓ All outputs saved to: {self.output_dir}")

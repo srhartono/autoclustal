@@ -13,4 +13,5 @@ results*
 *.sh
 __pycache__/
 *.pyc
-
+mystuff
+*workspace
