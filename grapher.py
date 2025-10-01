@@ -20,6 +20,7 @@ from pathlib import Path
 import argparse
 import re
 from typing import Dict, List, Tuple, Optional
+from collections import Counter
 
 # Set up matplotlib style
 plt.style.use('default')
@@ -438,30 +439,96 @@ class AutoClustalVisualizer:
     
     def _create_detailed_cluster_plot(self, cluster_counts, cluster_info):
         """Create detailed cluster analysis with multiple views."""
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(90, 12))
         fig.suptitle('Detailed Cluster Analysis with Annotations', fontsize=16, fontweight='bold')
         
         # 1. Cluster size distribution with best matches
         labels = []
+        short_matches = []
         for cluster_id in cluster_counts.index:
             best_match = cluster_info[cluster_id]['best_match']
-            # Even shorter labels for this plot
-            short_match = best_match[:25] + "..." if len(best_match) > 25 else best_match
-            labels.append(f"{cluster_id}\n{short_match}")
-        
-        bars1 = ax1.bar(range(len(cluster_counts)), cluster_counts.values, 
-                       color='skyblue', alpha=0.8, edgecolor='black')
+            # Custom label extraction logic
+            if best_match.lower() == "no significant hits":
+                short_match = "Nomatch"
+            elif "predicted" in best_match.lower():
+                words = best_match.split()
+                idx = next((i for i, w in enumerate(words) if w.lower() == "predicted"), None)
+                if idx is not None:
+                    short_match = " ".join(words[idx:idx+3])
+                else:
+                    short_match = " ".join(words[:2])
+            elif "rDNA" in best_match or "rRNA" in best_match or "rdna" in best_match or "rrna" in best_match:
+                short_match = "rRNA"
+            elif "homo sapiens" in best_match.lower() or "human" in best_match.lower():
+                short_match = "homo sapiens"
+            elif ";" in best_match:
+                short_match = best_match.split(";")[0]
+            elif "MAG:" in best_match:
+                mag_match = best_match.split()
+                if mag_match:
+                    short_match = " ".join(mag_match[:2])
+                else:
+                    short_match = " ".join(best_match.split()[:2])
+            else:
+                short_match = " ".join(best_match.split()[:2])
+                labels.append(f"{short_match}")
+                short_matches.append(short_match)
+
+        # Sort by x axis (short_match) and cluster size
+        sorted_items = sorted(zip(labels, cluster_counts.index, cluster_counts.values), key=lambda x: (x[0], -x[2]))
+        sorted_labels, sorted_cluster_ids, sorted_counts = zip(*sorted_items) if sorted_items else ([], [], [])
+
+        bars1 = ax1.bar(range(len(sorted_counts)), sorted_counts, 
+                   color='skyblue', alpha=0.8, edgecolor='black')
         ax1.set_title('Sequences per Cluster (with Best Match)', fontweight='bold')
         ax1.set_xlabel('Cluster ID + Annotation')
         ax1.set_ylabel('Number of Sequences')
-        ax1.set_xticks(range(len(cluster_counts)))
-        ax1.set_xticklabels(labels, rotation=45, ha='right', fontsize=8)
-        
+        ax1.set_xticks(range(len(sorted_counts)))
+        ax1.set_xticklabels(sorted_labels, rotation=45, ha='right', fontsize=8)
+
         # Add value labels
-        for i, (bar, count) in enumerate(zip(bars1, cluster_counts.values)):
+        for i, (bar, count) in enumerate(zip(bars1, sorted_counts)):
             ax1.text(bar.get_x() + bar.get_width()/2., count + 0.1,
-                    str(count), ha='center', va='bottom', fontweight='bold')
-        
+                 str(count), ha='center', va='bottom', fontweight='bold')
+
+        # Save sorted plot with width == number of x axis items
+        sorted_fig, sorted_ax = plt.subplots(figsize=(max(8, len(sorted_labels)), 6))
+        sorted_bars = sorted_ax.bar(range(len(sorted_counts)), sorted_counts, 
+                       color='skyblue', alpha=0.8, edgecolor='black')
+        sorted_ax.set_title('Sequences per Cluster (Sorted by Annotation)', fontweight='bold')
+        sorted_ax.set_xlabel('Cluster ID + Annotation')
+        sorted_ax.set_ylabel('Number of Sequences')
+        sorted_ax.set_xticks(range(len(sorted_counts)))
+        sorted_ax.set_xticklabels(sorted_labels, rotation=90, ha='right', fontsize=8)
+        for i, (bar, count) in enumerate(zip(sorted_bars, sorted_counts)):
+            sorted_ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
+                   str(count), ha='center', va='bottom', fontweight='bold')
+        plt.tight_layout()
+        sorted_path = self.output_dir / 'cluster_analysis_sorted.png'
+        sorted_fig.savefig(sorted_path, dpi=300, bbox_inches='tight')
+        plt.close(sorted_fig)
+        print(f"✓ Sorted cluster analysis saved: {sorted_path}")
+
+        # Group by short_match histogram
+        short_match_hist = Counter(short_matches)
+        hist_labels, hist_counts = zip(*short_match_hist.items()) if short_match_hist else ([], [])
+        hist_fig, hist_ax = plt.subplots(figsize=(max(8, len(hist_labels)), 6))
+        hist_bars = hist_ax.bar(range(len(hist_counts)), hist_counts, 
+                       color='mediumseagreen', alpha=0.8, edgecolor='black')
+        hist_ax.set_title('Clusters Grouped by Annotation (short_match)', fontweight='bold')
+        hist_ax.set_xlabel('Annotation Category')
+        hist_ax.set_ylabel('Number of Clusters')
+        hist_ax.set_xticks(range(len(hist_labels)))
+        hist_ax.set_xticklabels(hist_labels, rotation=90, ha='right', fontsize=8)
+        for i, (bar, count) in enumerate(zip(hist_bars, hist_counts)):
+            hist_ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
+                 str(count), ha='center', va='bottom', fontweight='bold')
+        plt.tight_layout()
+        hist_path = self.output_dir / 'cluster_annotation_histogram.png'
+        hist_fig.savefig(hist_path, dpi=300, bbox_inches='tight')
+        plt.close(hist_fig)
+        print(f"✓ Cluster annotation histogram saved: {hist_path}")
+
         # 2. Cluster size histogram
         ax2.hist(cluster_counts.values, bins=max(1, len(cluster_counts)//2), 
                 alpha=0.7, color='lightcoral', edgecolor='black')
@@ -469,29 +536,67 @@ class AutoClustalVisualizer:
         ax2.set_xlabel('Cluster Size (sequences)')
         ax2.set_ylabel('Number of Clusters')
         
-        # 3. Annotation success rate per cluster
-        annotated_clusters = 0
-        unannotated_clusters = 0
+        # 3a. Pie chart of clusters by annotation category (short_match)
+        short_match_counts = {}
+        for short_match in labels:
+            short_match_counts[short_match] = short_match_counts.get(short_match, 0) + 1
+
+        # Only show top N categories, group rest as 'Other'
+        N = 8
+        sorted_short_matches = sorted(short_match_counts.items(), key=lambda x: x[1], reverse=True)
+        top_short_matches = sorted_short_matches[:N]
+        other_count = sum([count for _, count in sorted_short_matches[N:]])
+        pie_labels = [sm for sm, _ in top_short_matches]
+        pie_sizes = [count for _, count in top_short_matches]
+        if other_count > 0:
+            pie_labels.append('Other')
+            pie_sizes.append(other_count)
+
+        colors_pie = plt.cm.Set3(np.linspace(0, 1, len(pie_labels)))
+        wedges, texts, autotexts = ax3.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%',
+                   colors=colors_pie, startangle=90)
+        ax3.set_title('Clusters by Annotation Category', fontweight='bold')
+        # Make percentage text bold
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+
+        # Save pie chart separately
+        pie_fig, pie_ax = plt.subplots(figsize=(8, 8))
+        pie_ax.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%',
+               colors=colors_pie, startangle=90)
+        pie_ax.set_title('Clusters by Annotation Category', fontweight='bold')
+        pie_path = self.output_dir / 'cluster_annotation_pie.png'
+        plt.savefig(pie_path, dpi=300, bbox_inches='tight')
+        plt.close(pie_fig)
+        print(f"✓ Cluster annotation pie chart saved: {pie_path}")
+
+        # # 3. Annotation success rate per cluster
+        # annotated_clusters = 0
+        # unannotated_clusters = 0
         
-        for cluster_id, info in cluster_info.items():
-            if info['best_match'] != "No significant hits":
-                annotated_clusters += 1
-            else:
-                unannotated_clusters += 1
+        # for cluster_id, info in cluster_info.items():
+        #     if info['best_match'] != "No significant hits":
+        #     annotated_clusters += 1
+        #     else:
+        #     unannotated_clusters += 1
         
-        if annotated_clusters > 0 or unannotated_clusters > 0:
-            sizes = [annotated_clusters, unannotated_clusters]
-            labels_pie = ['Annotated Clusters', 'Unannotated Clusters']
-            colors = ['lightgreen', 'lightcoral']
+        # if annotated_clusters > 0 or unannotated_clusters > 0:
+        #     sizes = [annotated_clusters, unannotated_clusters]
+        #     labels_pie = ['Annotated Clusters', 'Unannotated Clusters']
+        #     colors = ['lightgreen', 'lightcoral']
             
-            wedges, texts, autotexts = ax3.pie(sizes, labels=labels_pie, autopct='%1.1f%%',
-                                              colors=colors, startangle=90)
-            ax3.set_title('Cluster Annotation Success Rate', fontweight='bold')
-            
-            # Make percentage text bold
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
+        #     wedges, texts, autotexts = ax3.pie(sizes, labels=labels_pie, autopct='%1.1f%%',
+        #                       colors=colors, startangle=90)
+        #     ax3.set_title('Cluster Annotation Success Rate', fontweight='bold')
+        #     # Make percentage text bold
+        #     for autotext in autotexts:
+        #     autotext.set_color('white')
+        #     autotext.set_fontweight('bold')
+        #     # Make percentage text bold
+        #     for autotext in autotexts:
+        #         autotext.set_color('white')
+        #         autotext.set_fontweight('bold')
         
         # 4. Summary table
         total_clusters = len(cluster_counts)
@@ -505,9 +610,9 @@ class AutoClustalVisualizer:
             ['Total Sequences', total_sequences],
             ['Avg Cluster Size', f'{avg_cluster_size:.1f}'],
             ['Largest Cluster', largest_cluster],
-            ['Smallest Cluster', smallest_cluster],
-            ['Annotated Clusters', annotated_clusters],
-            ['Unannotated Clusters', unannotated_clusters]
+            ['Smallest Cluster', smallest_cluster]
+            # ['Annotated Clusters', annotated_clusters],
+            # ['Unannotated Clusters', unannotated_clusters]
         ]
         
         ax4.axis('tight')
