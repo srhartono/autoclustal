@@ -373,35 +373,175 @@ class AutoClustalVisualizer:
         # Cluster analysis
         cluster_counts = self.summary_df['cluster_id'].value_counts()
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        # Get representative best_match_title for each cluster
+        cluster_info = {}
+        for cluster_id in cluster_counts.index:
+            cluster_data = self.summary_df[self.summary_df['cluster_id'] == cluster_id]
+            
+            # Get the best match title (first non-empty one or most common one)
+            best_matches = cluster_data['best_match_title'].dropna()
+            best_matches = best_matches[best_matches != 'No significant hits']
+            
+            if len(best_matches) > 0:
+                # Use the most common best match title for this cluster
+                best_match = best_matches.mode().iloc[0] if len(best_matches.mode()) > 0 else best_matches.iloc[0]
+                # Truncate long titles
+                if len(best_match) > 40:
+                    best_match = best_match[:37] + "..."
+            else:
+                best_match = "No significant hits"
+            
+            cluster_info[cluster_id] = {
+                'count': cluster_counts[cluster_id],
+                'best_match': best_match
+            }
         
-        # Cluster size distribution
-        ax1.bar(cluster_counts.index, cluster_counts.values, 
-                color='skyblue', alpha=0.8, edgecolor='black')
-        ax1.set_title('Sequences per Cluster', fontweight='bold')
-        ax1.set_xlabel('Cluster ID')
+        # Create simple cluster analysis plot
+        self._create_simple_cluster_plot(cluster_counts, cluster_info)
+        
+        # Create detailed cluster analysis plot
+        self._create_detailed_cluster_plot(cluster_counts, cluster_info)
+    
+    def _create_simple_cluster_plot(self, cluster_counts, cluster_info):
+        """Create simple cluster analysis plot with best match titles."""
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Create labels with cluster ID and best match
+        labels = []
+        for cluster_id in cluster_counts.index:
+            best_match = cluster_info[cluster_id]['best_match']
+            labels.append(f"{cluster_id}\n{best_match}")
+        
+        # Create bar plot
+        bars = ax.bar(range(len(cluster_counts)), cluster_counts.values, 
+                     color='skyblue', alpha=0.8, edgecolor='black')
+        
+        ax.set_title('Clusters with Best Match Annotations', fontweight='bold', fontsize=14)
+        ax.set_xlabel('Cluster ID + Best Match Title')
+        ax.set_ylabel('Number of Sequences')
+        ax.set_xticks(range(len(cluster_counts)))
+        ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+        
+        # Add value labels on bars
+        for i, (bar, count) in enumerate(zip(bars, cluster_counts.values)):
+            ax.text(bar.get_x() + bar.get_width()/2., count + 0.1,
+                   str(count), ha='center', va='bottom', fontweight='bold')
+        
+        plt.tight_layout()
+        
+        # Save simple cluster analysis
+        cluster_path = self.output_dir / 'cluster_analysis.png'
+        plt.savefig(cluster_path, dpi=300, bbox_inches='tight')
+        print(f"✓ Simple cluster analysis saved: {cluster_path}")
+        
+        plt.close()
+    
+    def _create_detailed_cluster_plot(self, cluster_counts, cluster_info):
+        """Create detailed cluster analysis with multiple views."""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle('Detailed Cluster Analysis with Annotations', fontsize=16, fontweight='bold')
+        
+        # 1. Cluster size distribution with best matches
+        labels = []
+        for cluster_id in cluster_counts.index:
+            best_match = cluster_info[cluster_id]['best_match']
+            # Even shorter labels for this plot
+            short_match = best_match[:25] + "..." if len(best_match) > 25 else best_match
+            labels.append(f"{cluster_id}\n{short_match}")
+        
+        bars1 = ax1.bar(range(len(cluster_counts)), cluster_counts.values, 
+                       color='skyblue', alpha=0.8, edgecolor='black')
+        ax1.set_title('Sequences per Cluster (with Best Match)', fontweight='bold')
+        ax1.set_xlabel('Cluster ID + Annotation')
         ax1.set_ylabel('Number of Sequences')
-        ax1.tick_params(axis='x', rotation=45)
+        ax1.set_xticks(range(len(cluster_counts)))
+        ax1.set_xticklabels(labels, rotation=45, ha='right', fontsize=8)
         
         # Add value labels
-        for i, v in enumerate(cluster_counts.values):
-            ax1.text(i, v + 0.1, str(v), ha='center', va='bottom', fontweight='bold')
+        for i, (bar, count) in enumerate(zip(bars1, cluster_counts.values)):
+            ax1.text(bar.get_x() + bar.get_width()/2., count + 0.1,
+                    str(count), ha='center', va='bottom', fontweight='bold')
         
-        # Cluster size histogram
+        # 2. Cluster size histogram
         ax2.hist(cluster_counts.values, bins=max(1, len(cluster_counts)//2), 
                 alpha=0.7, color='lightcoral', edgecolor='black')
         ax2.set_title('Cluster Size Distribution', fontweight='bold')
         ax2.set_xlabel('Cluster Size (sequences)')
         ax2.set_ylabel('Number of Clusters')
         
+        # 3. Annotation success rate per cluster
+        annotated_clusters = 0
+        unannotated_clusters = 0
+        
+        for cluster_id, info in cluster_info.items():
+            if info['best_match'] != "No significant hits":
+                annotated_clusters += 1
+            else:
+                unannotated_clusters += 1
+        
+        if annotated_clusters > 0 or unannotated_clusters > 0:
+            sizes = [annotated_clusters, unannotated_clusters]
+            labels_pie = ['Annotated Clusters', 'Unannotated Clusters']
+            colors = ['lightgreen', 'lightcoral']
+            
+            wedges, texts, autotexts = ax3.pie(sizes, labels=labels_pie, autopct='%1.1f%%',
+                                              colors=colors, startangle=90)
+            ax3.set_title('Cluster Annotation Success Rate', fontweight='bold')
+            
+            # Make percentage text bold
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+        
+        # 4. Summary table
+        total_clusters = len(cluster_counts)
+        total_sequences = sum(cluster_counts.values)
+        avg_cluster_size = total_sequences / total_clusters if total_clusters > 0 else 0
+        largest_cluster = max(cluster_counts.values) if len(cluster_counts) > 0 else 0
+        smallest_cluster = min(cluster_counts.values) if len(cluster_counts) > 0 else 0
+        
+        summary_data = [
+            ['Total Clusters', total_clusters],
+            ['Total Sequences', total_sequences],
+            ['Avg Cluster Size', f'{avg_cluster_size:.1f}'],
+            ['Largest Cluster', largest_cluster],
+            ['Smallest Cluster', smallest_cluster],
+            ['Annotated Clusters', annotated_clusters],
+            ['Unannotated Clusters', unannotated_clusters]
+        ]
+        
+        ax4.axis('tight')
+        ax4.axis('off')
+        table = ax4.table(cellText=summary_data,
+                         colLabels=['Metric', 'Value'],
+                         cellLoc='center',
+                         loc='center',
+                         colWidths=[0.6, 0.4])
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.5)
+        
+        # Style the table
+        for i in range(len(summary_data) + 1):
+            for j in range(2):
+                cell = table[(i, j)]
+                if i == 0:  # Header
+                    cell.set_facecolor('#4CAF50')
+                    cell.set_text_props(weight='bold', color='white')
+                else:
+                    cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
+                    if j == 1:  # Value column
+                        cell.set_text_props(weight='bold')
+        
+        ax4.set_title('Cluster Summary Statistics', fontweight='bold')
+        
         plt.tight_layout()
         
-        # Save cluster analysis
+        # Save detailed cluster analysis
         cluster_path = self.output_dir / 'cluster_analysis_detailed.png'
         plt.savefig(cluster_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Cluster analysis saved: {cluster_path}")
+        print(f"✓ Detailed cluster analysis saved: {cluster_path}")
         
-        #plt.show()
         plt.close()
     
     def generate_summary_report(self, organism_counts: Dict[str, int]):

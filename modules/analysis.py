@@ -639,22 +639,65 @@ class AnalysisReporter:
         # Cluster size distribution
         cluster_sizes = [len(seq_ids) for seq_ids in clusters.values()]
         
-        plt.figure(figsize=(10, 6))
+        # Create cluster info with best match titles
+        cluster_info = {}
+        for cluster_id, seq_ids in clusters.items():
+            cluster_info[cluster_id] = {
+                'size': len(seq_ids),
+                'best_match': 'No annotation'
+            }
+            
+            # Try to get best match from annotations
+            if annotations:
+                best_matches = []
+                for seq_id in seq_ids:
+                    if seq_id in annotations and annotations[seq_id] and 'hits' in annotations[seq_id]:
+                        hits = annotations[seq_id]['hits']
+                        if hits:
+                            title = hits[0].get('title', 'Unknown')
+                            best_matches.append(title)
+                
+                if best_matches:
+                    # Use the first best match (they should be similar within a cluster)
+                    best_match = best_matches[0]
+                    # Truncate long titles
+                    if len(best_match) > 30:
+                        best_match = best_match[:27] + "..."
+                    cluster_info[cluster_id]['best_match'] = best_match
         
-        plt.subplot(1, 2, 1)
+        plt.figure(figsize=(12, 8))
+        
+        plt.subplot(2, 1, 1)
         plt.hist(cluster_sizes, bins=max(1, len(set(cluster_sizes))), alpha=0.7, edgecolor='black')
         plt.xlabel('Cluster Size')
         plt.ylabel('Number of Clusters')
         plt.title('Cluster Size Distribution')
         plt.grid(True, alpha=0.3)
         
-        plt.subplot(1, 2, 2)
+        plt.subplot(2, 1, 2)
         cluster_names = list(clusters.keys())
-        plt.barh(cluster_names, cluster_sizes)
+        
+        # Create labels with cluster ID and best match
+        cluster_labels = []
+        for cluster_id in cluster_names:
+            best_match = cluster_info[cluster_id]['best_match']
+            if best_match != 'No annotation':
+                label = f"{cluster_id}\n{best_match}"
+            else:
+                label = cluster_id
+            cluster_labels.append(label)
+        
+        bars = plt.barh(range(len(cluster_names)), cluster_sizes, color='skyblue', alpha=0.8, edgecolor='black')
+        plt.yticks(range(len(cluster_names)), cluster_labels)
         plt.xlabel('Number of Sequences')
-        plt.ylabel('Cluster ID')
-        plt.title('Sequences per Cluster')
+        plt.ylabel('Cluster ID + Best Match')
+        plt.title('Sequences per Cluster (with Annotations)')
         plt.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for i, (bar, size) in enumerate(zip(bars, cluster_sizes)):
+            plt.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2,
+                    str(size), ha='left', va='center', fontweight='bold')
         
         plt.tight_layout()
         
