@@ -114,6 +114,60 @@ class BlastSearcher:
             self.logger.error(f"BLAST search failed: {str(e)}")
             return {'error': str(e), 'hits': []}
     
+    def batch_blast_search(self, sequences: Dict[str, SeqRecord], database: str = 'nr', 
+                          program: str = 'auto') -> Dict[str, Dict[str, Any]]:
+        """
+        Perform batch BLAST search for multiple sequences in a single submission.
+        
+        Args:
+            sequences: Dictionary of sequence_id -> SeqRecord objects
+            database: Database to search ('nr', 'nt', 'swissprot', etc.)
+            program: BLAST program ('auto', 'blastn', 'blastp', 'blastx', etc.)
+            
+        Returns:
+            Dictionary mapping sequence IDs to their search results
+        """
+        self.logger.info(f"Batch BLAST searching {len(sequences)} sequences...")
+        
+        # Auto-detect BLAST program from first sequence
+        if program == 'auto':
+            first_seq = next(iter(sequences.values()))
+            program = self._detect_blast_program(str(first_seq.seq))
+        
+        # Check for cached results first
+        results = {}
+        uncached_sequences = {}
+        
+        if not self.force and self.raw_blast_dir:
+            for seq_id, seq_record in sequences.items():
+                cached_result = self._check_cached_results(seq_id, program, database)
+                if cached_result:
+                    self.logger.info(f"Using cached BLAST results for {seq_id}")
+                    results[seq_id] = cached_result
+                else:
+                    uncached_sequences[seq_id] = seq_record
+        else:
+            uncached_sequences = sequences
+        
+        # If all results are cached, return them
+        if not uncached_sequences:
+            self.logger.info("All sequences have cached results")
+            return results
+        
+        # Batch search uncached sequences
+        self.logger.info(f"Performing batch BLAST search for {len(uncached_sequences)} sequences")
+        
+        try:
+            batch_results = self._batch_web_blast_search(uncached_sequences, database, program)
+            results.update(batch_results)
+        except Exception as e:
+            self.logger.error(f"Batch BLAST search failed, falling back to individual searches: {str(e)}")
+            # Fallback to individual searches
+            for seq_id, seq_record in uncached_sequences.items():
+                results[seq_id] = self.blast_search(seq_record, database, program)
+        
+        return results
+    
     def _detect_blast_program(self, sequence: str) -> str:
         """Auto-detect appropriate BLAST program based on sequence."""
         sequence = sequence.upper()
@@ -284,6 +338,97 @@ class BlastSearcher:
             self.logger.error(f"Web BLAST search failed: {str(e)}")
             return {'error': str(e), 'hits': []}
     
+    def _batch_web_blast_search(self, sequences: Dict[str, SeqRecord], database: str, program: str) -> Dict[str, Dict[str, Any]]:
+        """Perform batch BLAST search using direct web interface."""
+        try:
+            # Use NCBI BLAST web interface
+            base_url = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
+            
+            # Create multi-FASTA query string
+            query_fasta = ""
+            seq_order = []  # Keep track of sequence order
+            
+            for seq_id, seq_record in sequences.items():
+                query_fasta += f">{seq_id}\n{str(seq_record.seq)}\n"
+                seq_order.append(seq_id)
+            
+            self.logger.debug(f"Created multi-FASTA query with {len(sequences)} sequences")
+            
+            # Submit batch search
+            params = {
+                'CMD': 'Put',
+                'PROGRAM': program,
+                'DATABASE': database,
+                'QUERY': query_fasta,
+                'HITLIST_SIZE': self.max_hits,
+                'EXPECT': self.evalue_threshold
+            }
+            
+            response = requests.post(base_url, data=params, timeout=60)
+            
+            if response.status_code != 200:
+                raise Exception(f"Batch BLAST submission failed: {response.status_code}")
+            
+            # Extract RID (Request ID)
+            rid = None
+            for line in response.text.split('\n'):
+                if 'RID = ' in line:
+                    rid = line.split('RID = ')[1].strip()
+                    break
+            
+            if not rid:
+                raise Exception("Failed to get batch BLAST RID")
+            
+            # Poll for results
+            self.logger.info(f"Batch BLAST search submitted (RID: {rid}), waiting for results...")
+            
+            max_wait_time = 600  # 10 minutes for batch jobs
+            start_time = time.time()
+            
+            while time.time() - start_time < max_wait_time:
+                # Check status
+                status_params = {'CMD': 'Get', 'FORMAT_OBJECT': 'SearchInfo', 'RID': rid}
+                status_response = requests.get(base_url, params=status_params, timeout=30)
+                
+                if 'Status=READY' in status_response.text:
+                    break
+                elif 'Status=WAITING' in status_response.text:
+                    time.sleep(15)  # Wait longer for batch jobs
+                else:
+                    raise Exception("Batch BLAST search failed or expired")
+            
+            else:
+                raise Exception("Batch BLAST search timed out")
+            
+            # Get results
+            result_params = {
+                'CMD': 'Get',
+                'FORMAT_TYPE': 'XML',
+                'RID': rid
+            }
+            
+            result_response = requests.get(base_url, params=result_params, timeout=120)
+            
+            if result_response.status_code != 200:
+                raise Exception(f"Failed to retrieve batch BLAST results: {result_response.status_code}")
+            
+            # Save raw XML response if output directory is specified
+            raw_xml_content = result_response.text
+            if self.raw_blast_dir:
+                raw_file = self.raw_blast_dir / f"batch_{rid}_web.xml"
+                with open(raw_file, 'w') as f:
+                    f.write(raw_xml_content)
+                self.logger.info(f"Raw batch BLAST response saved: {raw_file}")
+            
+            # Parse batch XML results
+            batch_results = self._parse_batch_blast_xml(raw_xml_content, seq_order, program, database, rid)
+            
+            return batch_results
+            
+        except Exception as e:
+            self.logger.error(f"Batch web BLAST search failed: {str(e)}")
+            raise e
+    
     def _parse_blast_xml(self, xml_content: str) -> List[Dict[str, Any]]:
         """Parse BLAST XML results."""
         hits = []
@@ -357,6 +502,136 @@ class BlastSearcher:
         
         self.logger.info(f"Parsed {len(hits)} valid hits from XML")
         return hits
+    
+    def _parse_batch_blast_xml(self, xml_content: str, seq_order: List[str], 
+                              program: str, database: str, rid: str) -> Dict[str, Dict[str, Any]]:
+        """Parse batch BLAST XML results and separate by query sequence."""
+        results = {}
+        
+        try:
+            root = ET.fromstring(xml_content)
+            
+            # Find all iterations - each iteration corresponds to one query sequence
+            iterations = root.findall('.//Iteration')
+            self.logger.debug(f"Found {len(iterations)} iterations in batch XML")
+            
+            for i, iteration in enumerate(iterations):
+                # Get query information
+                iter_query = iteration.find('Iteration_query-def')
+                query_id = iter_query.text if iter_query is not None else f"query_{i}"
+                
+                # Sometimes BLAST modifies the query ID, so use order if possible
+                if i < len(seq_order):
+                    query_id = seq_order[i]
+                
+                self.logger.debug(f"Processing iteration {i}: {query_id}")
+                
+                # Parse hits for this iteration
+                hits = []
+                hit_elements = iteration.findall('.//Hit')
+                self.logger.debug(f"Found {len(hit_elements)} hits for {query_id}")
+                
+                for hit in hit_elements:
+                    hit_def = hit.find('Hit_def')
+                    hit_accession = hit.find('Hit_accession')
+                    hit_len = hit.find('Hit_len')
+                    
+                    # Process HSPs (High-scoring Segment Pairs)
+                    hsps = hit.findall('.//Hsp')
+                    for hsp in hsps:
+                        try:
+                            evalue_elem = hsp.find('Hsp_evalue')
+                            if evalue_elem is None:
+                                continue
+                                
+                            evalue = float(evalue_elem.text)
+                            
+                            # Apply e-value filter
+                            if evalue <= self.evalue_threshold:
+                                hit_data = {
+                                    'title': hit_def.text if hit_def is not None else 'Unknown',
+                                    'accession': hit_accession.text if hit_accession is not None else 'Unknown',
+                                    'length': int(hit_len.text) if hit_len is not None else 0,
+                                    'evalue': evalue,
+                                    'score': float(hsp.find('Hsp_score').text),
+                                    'bits': float(hsp.find('Hsp_bit-score').text),
+                                    'identity': int(hsp.find('Hsp_identity').text),
+                                    'positives': int(hsp.find('Hsp_positive').text),
+                                    'gaps': int(hsp.find('Hsp_gaps').text),
+                                    'query_start': int(hsp.find('Hsp_query-from').text),
+                                    'query_end': int(hsp.find('Hsp_query-to').text),
+                                    'subject_start': int(hsp.find('Hsp_hit-from').text),
+                                    'subject_end': int(hsp.find('Hsp_hit-to').text),
+                                    'query_sequence': hsp.find('Hsp_qseq').text,
+                                    'subject_sequence': hsp.find('Hsp_hseq').text,
+                                    'match_sequence': hsp.find('Hsp_midline').text
+                                }
+                                
+                                hits.append(hit_data)
+                                
+                                if len(hits) >= self.max_hits:
+                                    break
+                        except (ValueError, AttributeError) as e:
+                            self.logger.warning(f"Error parsing HSP for {query_id}: {e}")
+                            continue
+                    
+                    if len(hits) >= self.max_hits:
+                        break
+                
+                # Store results for this query
+                results[query_id] = {
+                    'query_id': query_id,
+                    'program': program,
+                    'database': database,
+                    'hits': hits,
+                    'rid': rid,
+                    'batch': True
+                }
+                
+                self.logger.debug(f"Parsed {len(hits)} hits for {query_id}")
+                
+                # Save individual results to cache if requested
+                if self.raw_blast_dir and hits:
+                    safe_seq_id = self._make_safe_filename(query_id)
+                    cache_file = self.raw_blast_dir / f"{safe_seq_id}_batch.xml"
+                    
+                    # Create individual XML for caching
+                    individual_xml = self._create_individual_xml_from_iteration(iteration, query_id, rid)
+                    with open(cache_file, 'w') as f:
+                        f.write(individual_xml)
+                    self.logger.debug(f"Cached individual result: {cache_file}")
+        
+        except ET.ParseError as e:
+            self.logger.error(f"Failed to parse batch BLAST XML: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error parsing batch BLAST XML: {str(e)}")
+        
+        self.logger.info(f"Parsed batch results for {len(results)} sequences")
+        return results
+    
+    def _create_individual_xml_from_iteration(self, iteration, query_id: str, rid: str) -> str:
+        """Create individual XML file content from batch iteration for caching."""
+        # Create a minimal XML structure that matches single-query format
+        xml_template = f"""<?xml version="1.0"?>
+<!DOCTYPE BlastOutput PUBLIC "-//NCBI//NCBI BlastOutput/EN" "http://www.ncbi.nlm.nih.gov/dtd/NCBI_BlastOutput.dtd">
+<BlastOutput>
+  <BlastOutput_program>blastn</BlastOutput_program>
+  <BlastOutput_version>BLAST 2.0+</BlastOutput_version>
+  <BlastOutput_reference>Reference: Stephen F. Altschul, Thomas L. Madden, Alejandro A. Schaffer, Jinghui Zhang, Zheng Zhang, Webb Miller, and David J. Lipman (1997), "Gapped BLAST and PSI-BLAST: a new generation of protein database search programs", Nucleic Acids Res. 25:3389-3402.</BlastOutput_reference>
+  <BlastOutput_db>nr</BlastOutput_db>
+  <BlastOutput_query-ID>{query_id}</BlastOutput_query-ID>
+  <BlastOutput_query-def>{query_id}</BlastOutput_query-def>
+  <BlastOutput_query-len>0</BlastOutput_query-len>
+  <BlastOutput_param>
+    <Parameters>
+      <Parameters_expect>{self.evalue_threshold}</Parameters_expect>
+    </Parameters>
+  </BlastOutput_param>
+  <BlastOutput_iterations>
+    {ET.tostring(iteration, encoding='unicode')}
+  </BlastOutput_iterations>
+</BlastOutput>"""
+        return xml_template
     
     def _check_cached_results(self, sequence_id: str, program: str, database: str) -> Optional[Dict[str, Any]]:
         """

@@ -93,6 +93,10 @@ Examples:
                        help='Clustering threshold for representative selection (default: 0.8)')
     parser.add_argument('--force', action='store_true',
                        help='Force new BLAST searches even if cached results exist')
+    parser.add_argument('--batch-blast', action='store_true', default=True,
+                       help='Use batch BLAST search for multiple representatives (default: True)')
+    parser.add_argument('--no-batch-blast', dest='batch_blast', action='store_false',
+                       help='Disable batch BLAST search and use individual searches')
     
     # Other arguments
     parser.add_argument('--threads', type=int, default=4,
@@ -162,13 +166,39 @@ Examples:
                 # Search representative sequences only (faster)
                 logger.info(f"BLAST searching {len(representatives)} representative sequences...")
                 rep_annotations = {}
-                for cluster_id, rep_seq in representatives.items():
-                    if args.blast:
-                        result = searcher.blast_search(rep_seq)
-                        logger.debug(f"BLAST result for {cluster_id}: {result}")
-                        rep_annotations[cluster_id] = result
-                    elif args.blat:
-                        rep_annotations[cluster_id] = searcher.blat_search(rep_seq)
+                
+                if args.blast and len(representatives) > 1 and args.batch_blast:
+                    # Use batch BLAST for multiple representatives (more efficient)
+                    logger.info("Using batch BLAST search for multiple representatives...")
+                    try:
+                        # Convert representatives to seq_id -> SeqRecord mapping for batch search
+                        rep_seq_dict = {rep_seq.id: rep_seq for rep_seq in representatives.values()}
+                        batch_results = searcher.batch_blast_search(rep_seq_dict)
+                        
+                        # Map batch results to cluster IDs
+                        for cluster_id, rep_seq in representatives.items():
+                            rep_id = rep_seq.id
+                            if rep_id in batch_results:
+                                rep_annotations[cluster_id] = batch_results[rep_id]
+                                logger.debug(f"Batch BLAST result for {cluster_id}: {batch_results[rep_id]}")
+                            else:
+                                logger.warning(f"No batch result found for {cluster_id} ({rep_id})")
+                                # Fallback to individual search
+                                rep_annotations[cluster_id] = searcher.blast_search(rep_seq)
+                    except Exception as e:
+                        logger.warning(f"Batch BLAST failed: {e}. Falling back to individual searches...")
+                        # Fallback to individual searches
+                        for cluster_id, rep_seq in representatives.items():
+                            rep_annotations[cluster_id] = searcher.blast_search(rep_seq)
+                else:
+                    # Single representative, batch disabled, or non-BLAST search - use individual searches
+                    for cluster_id, rep_seq in representatives.items():
+                        if args.blast:
+                            result = searcher.blast_search(rep_seq)
+                            logger.debug(f"BLAST result for {cluster_id}: {result}")
+                            rep_annotations[cluster_id] = result
+                        elif args.blat:
+                            rep_annotations[cluster_id] = searcher.blat_search(rep_seq)
                 
                 # Propagate annotations to all sequences in each cluster
                 logger.info("Propagating annotations to all sequences in clusters...")
