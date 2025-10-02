@@ -3,11 +3,7 @@
 AutoClustal: Comprehensive Sequence Analysis Pipeline
 =====================================================
 
-A bioinformatics tool for                 # Propagate annotations to all sequences in clusters
-                logger.info("Propagating annotations to all sequences in clusters...")
-                logger.debug(f"Representative annotations: {rep_annotations}")
-                for cluster_id, seq_ids in clusters.items():uence alignment, phylogenetic analysis,
-and functional annotation of FASTA/FASTQ sequences.
+A bioinformatics tool for sequence alignment, phylogenetic analysis, and functional annotation of FASTA/FASTQ sequences.
 
 Features:
 - Automatic sequence type detection (DNA/RNA/protein)
@@ -18,8 +14,8 @@ Features:
 - PCA analysis and visualization
 - Comprehensive reporting
 
-Author: Auto-generated bioinformatics pipeline
-Date: September 30, 2025
+Author: Stella R. Hartono (srhartono@ucdavis.edu) 2025
+
 """
 
 import os
@@ -28,15 +24,13 @@ import argparse
 import logging
 from pathlib import Path
 
-# Add local modules to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from modules.sequence_handler import SequenceHandler
-from modules.alignment import AlignmentEngine
-from modules.phylogeny import PhylogeneticAnalyzer
-from modules.blast_search import BlastSearcher
-from modules.clustering import SequenceClusterer
-from modules.simple_analysis import AnalysisReporter
+# Import from package modules
+from autoclustal.modules.sequence_handler import SequenceHandler
+from autoclustal.modules.alignment import AlignmentEngine
+from autoclustal.modules.phylogeny import PhylogeneticAnalyzer
+from autoclustal.modules.blast_search import BlastSearcher
+from autoclustal.modules.clustering import SequenceClusterer
+from autoclustal.modules.simple_analysis import AnalysisReporter
 
 def setup_logging(log_level='INFO'):
     """Setup logging configuration."""
@@ -59,6 +53,8 @@ Examples:
   python autoclustal.py -i sequences.fasta -o results/
   python autoclustal.py -i sequences.fastq -t protein -a muscle -p ml
   python autoclustal.py -i *.fasta -o analysis/ --blast --pca
+  python autoclustal.py -i large_file.fasta -M 100000 -N 100 -o sampled_analysis/
+  python autoclustal.py -i huge_dataset.fastq -M 1000000 -N 500 --random-seed 42
         """
     )
     
@@ -67,6 +63,14 @@ Examples:
                        help='Input FASTA/FASTQ files (supports wildcards)')
     parser.add_argument('-o', '--output', default='autoclustal_results',
                        help='Output directory (default: autoclustal_results)')
+    
+    # Sequence sampling arguments
+    parser.add_argument('-M', '--max-sequences', type=int, default=None,
+                       help='Maximum number of sequences to take from the beginning of input files (default: all sequences)')
+    parser.add_argument('-N', '--random-sample', type=int, default=None,
+                       help='Number of sequences to randomly sample from the first M sequences (default: use all selected sequences)')
+    parser.add_argument('--random-seed', type=int, default=None,
+                       help='Random seed for reproducible sampling (default: None)')
     
     # Sequence type arguments
     parser.add_argument('-t', '--type', choices=['auto', 'dna', 'rna', 'protein'],
@@ -106,6 +110,16 @@ Examples:
     
     args = parser.parse_args()
     
+    # Validate sampling arguments
+    if args.random_sample and args.max_sequences and args.random_sample > args.max_sequences:
+        parser.error("Random sample size (-N) cannot be larger than max sequences (-M)")
+    
+    if args.max_sequences and args.max_sequences <= 0:
+        parser.error("Max sequences (-M) must be a positive integer")
+    
+    if args.random_sample and args.random_sample <= 0:
+        parser.error("Random sample size (-N) must be a positive integer")
+    
     # Setup logging
     setup_logging(args.log_level)
     logger = logging.getLogger(__name__)
@@ -132,7 +146,26 @@ Examples:
         
         # Step 1: Load and process sequences
         logger.info("Step 1: Loading and processing sequences...")
-        sequences = seq_handler.load_sequences(args.input, seq_type=args.type)
+        
+        # Log sampling information if provided
+        if args.max_sequences or args.random_sample:
+            if args.max_sequences and args.random_sample:
+                logger.info(f"Sampling strategy: Take first {args.max_sequences} sequences, then randomly sample {args.random_sample} from those")
+            elif args.max_sequences:
+                logger.info(f"Taking first {args.max_sequences} sequences from input files")
+            elif args.random_sample:
+                logger.info(f"Randomly sampling {args.random_sample} sequences from all input")
+            
+            if args.random_seed:
+                logger.info(f"Using random seed: {args.random_seed}")
+        
+        sequences = seq_handler.load_sequences(
+            args.input, 
+            seq_type=args.type,
+            max_sequences=args.max_sequences,
+            random_sample_size=args.random_sample,
+            random_seed=args.random_seed
+        )
         logger.info(f"Loaded {len(sequences)} sequences")
         
         # Step 2: Sequence alignment

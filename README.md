@@ -5,6 +5,7 @@ AutoClustal is a powerful bioinformatics tool that performs comprehensive sequen
 ## Features
 
 - **Sequence Input**: Support for FASTA and FASTQ formats
+- **Sequence Sampling**: Random sampling from large datasets (-M and -N parameters)
 - **Automatic Detection**: DNA, RNA, or protein sequence type detection
 - **Multiple Alignment**: Integration with MUSCLE, ClustalW, and MAFFT
 - **Phylogenetic Analysis**: Distance-based (NJ, UPGMA) and ML methods
@@ -181,6 +182,9 @@ Required:
 
 Optional:
   -o, --output          Output directory (default: autoclustal_results)
+  -M, --max-sequences   Maximum number of sequences to take from beginning (default: all)
+  -N, --random-sample   Number of sequences to randomly sample from first M (default: all)
+  --random-seed         Random seed for reproducible sampling (default: None)
   -t, --type            Sequence type: auto, dna, rna, protein (default: auto)
   -a, --aligner         Alignment tool: muscle, clustalw, mafft (default: muscle)
   -p, --phylogeny       Phylogenetic method: nj, upgma, ml (default: nj)
@@ -229,6 +233,16 @@ python autoclustal.py -i proteins.fasta -t protein --blast --pca -o protein_anal
 #### Example 3: Multiple files with clustering
 ```bash
 python autoclustal.py -i *.fasta -a mafft --cluster-threshold 0.7 -o multi_analysis/
+```
+
+#### Example 4: Large dataset sampling (analyze 100 sequences from first 100,000)
+```bash
+python autoclustal.py -i huge_dataset.fasta -M 100000 -N 100 --random-seed 42 -o sampled_analysis/
+```
+
+#### Example 5: Random sampling from entire dataset
+```bash
+python autoclustal.py -i large_file.fastq -N 500 --blast --pca -o random_sample_analysis/
 ```
 
 ## Output Files

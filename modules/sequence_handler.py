@@ -10,6 +10,7 @@ import os
 import re
 import glob
 import logging
+import random
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
@@ -32,13 +33,19 @@ class SequenceHandler:
         self.logger = logging.getLogger(__name__)
         self.supported_formats = ['fasta', 'fastq', 'fa', 'fq', 'fas']
         
-    def load_sequences(self, input_files: List[str], seq_type: str = 'auto') -> Dict[str, SeqRecord]:
+    def load_sequences(self, input_files: List[str], seq_type: str = 'auto', 
+                      max_sequences: Optional[int] = None, 
+                      random_sample_size: Optional[int] = None,
+                      random_seed: Optional[int] = None) -> Dict[str, SeqRecord]:
         """
-        Load sequences from input files.
+        Load sequences from input files with optional sampling.
         
         Args:
             input_files: List of file paths (supports wildcards)
             seq_type: Sequence type ('auto', 'dna', 'rna', 'protein')
+            max_sequences: Maximum number of sequences to take from the beginning (M parameter)
+            random_sample_size: Number of random sequences to sample from the first max_sequences (N parameter)
+            random_seed: Random seed for reproducible sampling
             
         Returns:
             Dictionary of sequence ID to SeqRecord objects
@@ -46,22 +53,42 @@ class SequenceHandler:
         sequences = {}
         file_paths = self._expand_file_paths(input_files)
         
+        # Set random seed for reproducibility
+        if random_seed is not None:
+            random.seed(random_seed)
+        
+        all_sequences = []
+        
         for file_path in file_paths:
             self.logger.info(f"Loading sequences from: {file_path}")
             file_sequences = self._load_single_file(file_path)
-            
-            # Detect sequence type if auto
-            if seq_type == 'auto':
-                detected_type = self._detect_sequence_type(file_sequences)
-                self.logger.info(f"Detected sequence type: {detected_type}")
-            else:
-                detected_type = seq_type
-            
-            # Validate and process sequences
-            processed_sequences = self._process_sequences(file_sequences, detected_type)
-            sequences.update(processed_sequences)
+            all_sequences.extend(file_sequences)
         
-        self.logger.info(f"Loaded {len(sequences)} total sequences")
+        # Apply sampling if specified
+        if max_sequences is not None:
+            if len(all_sequences) > max_sequences:
+                self.logger.info(f"Taking first {max_sequences} sequences from {len(all_sequences)} total")
+                all_sequences = all_sequences[:max_sequences]
+        
+        if random_sample_size is not None:
+            if len(all_sequences) > random_sample_size:
+                self.logger.info(f"Randomly sampling {random_sample_size} sequences from {len(all_sequences)} available")
+                all_sequences = random.sample(all_sequences, random_sample_size)
+            else:
+                self.logger.info(f"Requested {random_sample_size} random samples, but only {len(all_sequences)} sequences available. Using all sequences.")
+        
+        # Detect sequence type if auto
+        if seq_type == 'auto':
+            detected_type = self._detect_sequence_type(all_sequences)
+            self.logger.info(f"Detected sequence type: {detected_type}")
+        else:
+            detected_type = seq_type
+        
+        # Validate and process sequences
+        processed_sequences = self._process_sequences(all_sequences, detected_type)
+        sequences.update(processed_sequences)
+        
+        self.logger.info(f"Loaded {len(sequences)} total sequences after sampling")
         return sequences
     
     def _expand_file_paths(self, input_files: List[str]) -> List[str]:
@@ -362,3 +389,35 @@ class SequenceHandler:
         }
         
         return stats
+    
+    def sample_sequences_from_top(self, sequences: List[SeqRecord], 
+                                 max_sequences: int, 
+                                 random_sample_size: int,
+                                 random_seed: Optional[int] = None) -> List[SeqRecord]:
+        """
+        Sample random N sequences from top M sequences.
+        
+        Args:
+            sequences: List of SeqRecord objects
+            max_sequences: Maximum number of sequences to consider from the top (M)
+            random_sample_size: Number of sequences to randomly sample (N)
+            random_seed: Random seed for reproducibility
+            
+        Returns:
+            List of sampled SeqRecord objects
+        """
+        if random_seed is not None:
+            random.seed(random_seed)
+        
+        # Take first M sequences
+        top_sequences = sequences[:max_sequences] if len(sequences) > max_sequences else sequences
+        
+        # Sample N sequences randomly from the top M
+        if len(top_sequences) <= random_sample_size:
+            self.logger.warning(f"Requested {random_sample_size} samples from {len(top_sequences)} sequences. Returning all available sequences.")
+            return top_sequences
+        
+        sampled = random.sample(top_sequences, random_sample_size)
+        self.logger.info(f"Sampled {len(sampled)} sequences from top {len(top_sequences)} sequences")
+        
+        return sampled

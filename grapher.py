@@ -32,31 +32,58 @@ plt.rcParams['font.size'] = 10
 
 # ---- Compact regexes by category (case-insensitive) ----
 GROUP_PATTERNS = {
-    "eukaryotic": r"(?:eukaryotic|eukaryote|eukaryota)",
-    "prokaryotic": r"(?:prokaryotic|prokaryote|prokaryota)",
-    "synthetic": r"(?:synthetic|vector|plasmid|artificial|construct|chimera|chimeric)",
-
-    "bacteria": r"(?:bacter|philus |zobium |coccus|cillus|ella|zoogloea |myco|spir|archae|therm|methanogen|halobacterium|"
-                r"pseudomonas|escherichia|shigella|vibrio|campylobacter|onia |bacter|proteus|neisseria|clostridium)",
-
-    "virus": r"(?:virus|viridae|virinae|phage|corona|sars|mers|orthomyxo|influenza|adeno|retro|"
-             r"herpes|papilloma|noro|rota|rhino|paramyxo|hepat|pox|flavi|filo|arena|reo|bunya|"
-             r"hiv|ebola|zika|dengue)",
-
-    "fungi": r"(?:fung|yeast|myces|mycota|mycet|aspergill|candida|neurospor|penicill|trichophyt|"
-             r"cryptococc|histoplas|blastomy|coccidio|saccharo|schizo|pichia|kluyvero|mucor|zygo)",
-
-    "plants": r"(?:viridiplant|plantae|arabidops|oryza|rice|triticum|wheat|zea|maize|glycine|soybean|"
-              r"hordeum|barley|avena|oat|sorghum|solanum|potato|tomato|gossypium|cotton|populus|"
-              r"brassica|spinacia|spinach|lactuca|lettuce|cucumis|cucumber|melon|vitis|grape|musa|"
-              r"banana|malus|apple|pyrus|pear|prunus|peach)",
+    "human": r"(?:human|homo\s? sapiens|h. sapiens|homo_sapiens)",
+    "mouse": r"(?:mus\s?musculus|mouse|m. musculus|mus_musculus)",
+    "rat": r"(?:rattus\s?norvegicus|rat|r. norvegicus|rattus_norvegicus)",
+    "zebrafish": r"(?:danio\s?rerio|zebrafish|d. rerio|danio_rerio)",
+    "celegans": r"(?:caenorhabditis\s?elegans|c\.?\s?elegans|c_elegans|nematode)",
+    "drosophila": r"(?:drosophila\s?melanogaster|d\.?\s?melanogaster|fruit fly|drosophila)",
+    "arabidopsis": r"(?:arabidopsis\s?thaliana|a\.?\s?thaliana|arabidopsis)",
+    "yeast": r"(?:saccharomyces\s?cerevisiae|s\.?\s?cerevisiae|yeast|baker yeast|saccharomyces)",
+    "chicken": r"(?:gallus\s?gallus|chicken|g. gallus|gallus_gallus)",
+    "frog": r"(?:xenopus\s?laevis|frog|x. laevis|xenopus_laevis)",
+    "ecoli": r"(?:escherichia\s?coli|e\.?\s?coli|e_coli|ecoli)",
 
     "mammals": r"(?:homo[_\s]?sapiens|h\.?\s?sapiens|human|mus\s?musculus|mouse|murine|"
                r"rattus\s?norvegicus|rat|canis|dog|felis|cat|bos|cow|sus|pig|equus|horse|"
                r"ovis|sheep|capra|goat|oryctolagus|rabbit|macaque|macaca|chimp|"
                r"pan\s?troglodytes|gorilla|pongo|orangutan|dolphin|delphin|whale|balaen|"
                r"elephant|loxodonta|monkey)",
-    "rDNA": r"(?:rdna|rrna|ribosomal\s?(dna|rna))"
+    "fish": r"(?:fish|fishes|ichthy|teleost|salmon|trout|tuna|zebrafish|danio rerio)",
+    "invertebrate": r"(?:invertebrate|insect|arthropod|annelid|mollusk|cnidarian|"
+                    r"nematode|echinoderm|porifera|platyhelminth|rotifer|tardigrade)",
+    "bacteria": r"(?:bacteria|bacterial|bacillus|streptococcus|staphylococcus|lactobacillus|"
+                      r"clostridium|corynebacterium|enterobacter|serratia|klebsiella|"
+                      r"pseudomonas|salmonella|shigella|vibrio|neisseria|haemophilus|"
+                      r"legionella|mycobacterium|listeria|bordetella:bacter|philus |zobium |coccus|cillus|ella|zoogloea |myco|spir|archae|therm|methanogen|halobacterium|"
+                      r"pseudomonas|escherichia|shigella|vibrio|campylobacter|onia |bacter|proteus|neisseria|clostridium)",
+    "virus": r"(?:virus|viral|phage|coronavirus|influenza|retrovirus|herpesvirus|"
+                    r"adenovirus|papillomavirus|norovirus|rotavirus|rhinovirus|"
+                    r"paramyxovirus|hepatovirus|poxvirus|flavivirus|filovirus|arenavirus|virus|viridae|virinae|phage|corona|sars|mers|orthomyxo|influenza|adeno|retro|"
+                    r"herpes|papilloma|noro|rota|rhino|paramyxo|hepat|pox|flavi|filo|arena|reo|bunya|"
+                    r"hiv|ebola|zika|dengue)",
+    "fungi": r"(?:fungi|fungal|candida|aspergillus|neurospora|penicillium|trichophyton|"
+                    r"cryptococcus|histoplasma|blastomyces|coccidioides|saccharomyces|"
+                    r"schizosaccharomyces|pichia|kluyveromyces|mucor|zygomycetes|yeast|myces|mycota|mycet|aspergill|candida|neurospor|penicill|trichophyt|"
+                    r"cryptococc|histoplas|blastomy|coccidio|saccharo|schizo|pichia|kluyvero|mucor|zygo)",
+    "plants": r"(?:plant|plantae|viridiplantae|rice|wheat|maize|soybean|cotton|populus|"
+                    r"arabidopsis|oryza|triticum|zea|glycine|hordeum|barley|avena|oat|"
+                    r"sorghum|solanum|potato|tomato|gossypium|brassica|spinacia|"
+                    r"spinach|lactuca|lettuce|cucumis|cucumber|melon|vitis|grape|musa|"
+                    r"banana|malus|apple|pyrus|pear|prunus|peach|viridiplant|plantae|arabidops|oryza|rice|triticum|wheat|zea|maize|glycine|soybean|"
+                    r"hordeum|barley|avena|oat|sorghum|solanum|potato|tomato|gossypium|cotton|populus|"
+                    r"brassica|spinacia|spinach|lactuca|lettuce|cucumis|cucumber|melon|vitis|grape|musa|"
+                    r"banana|malus|apple|pyrus|pear|prunus|peach)",
+    "animals": r"(?:animal|animals|metazoa|metazoan|vertebrate|mammal|mammals|"
+                      r"bird|birds|fish|fishes|amphibian|amphibians|reptile|reptiles|insect|insects|"
+                      r"arthropod|annelid|mollusk|cnidarian|nematode|echinoderm|porifera|platyhelminth|rotifer|tardigrade|"
+                      r"canis|dog|felis|cat|bos|cow|sus|pig|equus|horse|ovis|sheep|capra|goat|oryctolagus|rabbit|macaque|macaca|chimp|"
+                      r"pan\s?troglodytes|gorilla|pongo|orangutan|dolphin|delphin|whale|balaen|elephant|loxodonta|monkey)",
+
+    "eukaryotic": r"(?:eukaryotic|eukaryote|eukaryota)",
+    "prokaryotic": r"(?:prokaryotic|prokaryote|prokaryota)",
+    "synthetic": r"(?:synthetic|vector|plasmid|artificial|construct|chimera|chimeric)",
+    "any_rDNA": r"(?:rdna|rrna|ribosomal\s?(dna|rna))"
 }
 
 COMPILED = {k: re.compile(v, flags=re.IGNORECASE) for k, v in GROUP_PATTERNS.items()}
