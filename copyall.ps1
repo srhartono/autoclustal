@@ -6,13 +6,13 @@ Write-Output "Updated pyproject.toml to version $version"
 New-Item -ItemType Directory -Force -Path .\autoclustal
 
 # 2. Copy bin → autoclustal\bin
-Copy-Item -Recurse -Force .\bin .\autoclustal\
+Copy-Item -Recurse -Force .\bin\* .\autoclustal\bin\
 
 # 3. Copy modules → autoclustal\modules
-Copy-Item -Recurse -Force .\modules .\autoclustal\
+Copy-Item -Recurse -Force .\modules\* .\autoclustal\modules\
 
 # 4. Copy conf → autoclustal\conf
-Copy-Item -Recurse -Force .\conf .\autoclustal\
+Copy-Item -Recurse -Force .\conf\* .\autoclustal\conf\
 
 # 5. Copy README.md → autoclustal\
 Copy-Item -Force .\pyproject.toml .\autoclustal\
@@ -36,7 +36,8 @@ Copy-Item -Force .\nextflow.config .\autoclustal\
 if (Test-Path dist) { Remove-Item -Recurse -Force dist } ; if (Test-Path build) { Remove-Item -Recurse -Force build } ; if (Test-Path autoclustal.egg-info) { Remove-Item -Recurse -Force autoclustal.egg-info }
 python -m build
 python -m twine check dist/*
+pip install .\dist\autoclustal-$version.tar.gz 
 #python -m twine upload --repository testpypi dist/*
 #python -m twine upload --repository pypi dist/*
-#pip install -U autoclustal
+# pip install -U autoclustal
 Write-Output "Build complete. You can now upload the package to PyPI using twine."

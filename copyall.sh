@@ -11,12 +11,15 @@ cp -f ./pyproject.toml ./autoclustal/
 cp -f ./README.md ./autoclustal/
 cp -f ./environment.yml ./autoclustal/
 cp -f ./nextflow.config ./autoclustal/
+cp -f ./LICENSE ./autoclustal/
+cp -f ./MANIFEST.in ./autoclustal/
 
 rm -fr ./dist/
 rm -fr ./build/
 rm -fr ./autoclustal.egg-info/
 python -m build
 python -m twine check dist/*
+pip install ./dist/autoclustal-$ver.tar.gz
 #python -m twine upload --repository testpypi dist/*
 #python -m twine upload --repository pypi dist/*
 #pip install -U autoclustal

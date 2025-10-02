@@ -33,6 +33,13 @@ from modules.blast_search import BlastSearcher
 from modules.clustering import SequenceClusterer
 from modules.simple_analysis import AnalysisReporter
 
+versionFile=Path(__file__).parent.parent / 'version.txt'
+version = "0.0.0"
+if versionFile.exists():
+    with open(versionFile, 'r') as vf:
+        version = vf.read().strip()
+
+
 def setup_logging(log_level='INFO'):
     """Setup logging configuration."""
     logging.basicConfig(
@@ -47,7 +54,7 @@ def setup_logging(log_level='INFO'):
 def main():
     """Main pipeline execution."""
     parser = argparse.ArgumentParser(
-        description='AutoClustal: Comprehensive Sequence Analysis Pipeline',
+        description=f'AutoClustal {version}: Comprehensive Sequence Analysis Pipeline',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -58,9 +65,10 @@ Examples:
   python autoclustal.py -i huge_dataset.fastq -M 1000000 -N 500 --random-seed 42
         """
     )
+    parser.add_argument('-v', '--version', help='Display Version', action='store_true')
     
     # Input/Output arguments
-    parser.add_argument('-i', '--input', required=True, nargs='+',
+    parser.add_argument('-i', '--input', nargs='+',
                        help='Input FASTA/FASTQ files (supports wildcards)')
     parser.add_argument('-o', '--output', default='autoclustal_results',
                        help='Output directory (default: autoclustal_results)')
@@ -108,7 +116,10 @@ Examples:
                        help='Number of threads to use (default: 4)')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
                        default='INFO', help='Logging level (default: INFO)')
-    
+
+    print(f"")
+    parser.usage = parser.format_usage().replace("usage:","") + f" # AutoClustal v{version}\n\n"
+
     args = parser.parse_args()
     
     # Validate sampling arguments
@@ -125,6 +136,12 @@ Examples:
     setup_logging(args.log_level)
     logger = logging.getLogger(__name__)
     
+    if args.version:
+        print(f"AutoClustal Version {version}")
+        sys.exit(0)
+
+    if not args.input:
+        parser.error("Input files are required. Use -i to specify input FASTA/FASTQ files.")
     try:
         # Create output directory with results structure
         # if args.output and not args.output.startswith('results/'):
