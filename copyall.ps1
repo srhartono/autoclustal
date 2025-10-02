@@ -37,7 +37,7 @@ if (Test-Path dist) { Remove-Item -Recurse -Force dist } ; if (Test-Path build) 
 python -m build
 python -m twine check dist/*
 pip install .\dist\autoclustal-$version.tar.gz 
-#python -m twine upload --repository testpypi dist/*
-#python -m twine upload --repository pypi dist/*
-# pip install -U autoclustal
+python -m twine upload --repository testpypi dist/*
+python -m twine upload --repository pypi dist/*
+pip install -U autoclustal
 Write-Output "Build complete. You can now upload the package to PyPI using twine."

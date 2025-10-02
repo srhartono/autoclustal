@@ -20,7 +20,7 @@ rm -fr ./autoclustal.egg-info/
 python -m build
 python -m twine check dist/*
 pip install ./dist/autoclustal-$ver.tar.gz
-#python -m twine upload --repository testpypi dist/*
+python -m twine upload --repository testpypi dist/*
 #python -m twine upload --repository pypi dist/*
 #pip install -U autoclustal
 echo "Build complete. You can now upload the package to PyPI using twine."
