@@ -21,6 +21,10 @@ Copy-Item -Force .\pyproject.toml .\autoclustal\
 Copy-Item -Force .\version.txt .\autoclustal\
 
 # 5. Copy README.md → autoclustal\
+Copy-Item -Force LICENSE .\autoclustal\
+Copy-Item -Force MANIFEST.in .\autoclustal\
+
+# 5. Copy README.md → autoclustal\
 Copy-Item -Force .\README.md .\autoclustal\
 
 # 6. Copy environment.yml → autoclustal\

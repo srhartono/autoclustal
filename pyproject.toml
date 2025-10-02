@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoclustal"
+version = "1.0.5"
+authors = [
+    {name = "Stella Hartono", email = "srhartono@ucdavis.edu"},
+]
+description = "Comprehensive bioinformatics pipeline for sequence analysis, clustering, phylogeny, and BLAST annotation"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+keywords = ["bioinformatics", "phylogeny", "clustering", "blast", "sequence-analysis", "alignment"]
+dependencies = [
+    "biopython>=1.81",
+    "pandas>=1.3.0",
+    "numpy>=1.21.0",
+    "matplotlib>=3.5.0",
+    "seaborn>=0.11.0",
+    "scikit-learn>=1.0.0",
+    "requests>=2.25.0",
+    "plotly>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/srhartono/autoclustal"
+"Bug Tracker" = "https://github.com/srhartono/autoclustal/issues"
+Documentation = "https://github.com/srhartono/autoclustal#readme"
+"Source Code" = "https://github.com/srhartono/autoclustal"
+
+[project.scripts]
+autoclustal = "autoclustal.bin.autoclustal:main"
+autoclustal-visualize = "autoclustal.bin.visualize:main"
+autoclustal-grapher = "autoclustal.bin.grapher:main"
+
+[tool.setuptools]
+packages = ["autoclustal", "autoclustal.modules", "autoclustal.bin", "autoclustal.conf"]
+
+[tool.setuptools.package-data]
+autoclustal = ["conf/*", "*.md", "*.txt"]
