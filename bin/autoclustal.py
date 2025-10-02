@@ -25,12 +25,13 @@ import logging
 from pathlib import Path
 
 # Import from package modules
-from autoclustal.modules.sequence_handler import SequenceHandler
-from autoclustal.modules.alignment import AlignmentEngine
-from autoclustal.modules.phylogeny import PhylogeneticAnalyzer
-from autoclustal.modules.blast_search import BlastSearcher
-from autoclustal.modules.clustering import SequenceClusterer
-from autoclustal.modules.simple_analysis import AnalysisReporter
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from modules.sequence_handler import SequenceHandler
+from modules.alignment import AlignmentEngine
+from modules.phylogeny import PhylogeneticAnalyzer
+from modules.blast_search import BlastSearcher
+from modules.clustering import SequenceClusterer
+from modules.simple_analysis import AnalysisReporter
 
 def setup_logging(log_level='INFO'):
     """Setup logging configuration."""
@@ -50,7 +51,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python autoclustal.py -i sequences.fasta -o results/
+  python autoclustal.py -i sequences.fasta -o sequences_result
   python autoclustal.py -i sequences.fastq -t protein -a muscle -p ml
   python autoclustal.py -i *.fasta -o analysis/ --blast --pca
   python autoclustal.py -i large_file.fasta -M 100000 -N 100 -o sampled_analysis/
@@ -126,10 +127,10 @@ Examples:
     
     try:
         # Create output directory with results structure
-        if args.output and not args.output.startswith('results/'):
-            final_output_dir = Path('results') / args.output
-        else:
-            final_output_dir = Path(args.output)
+        # if args.output and not args.output.startswith('results/'):
+            # final_output_dir = Path('results') / args.output
+        # else:
+        final_output_dir = Path(args.output)
         
         final_output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -185,17 +186,22 @@ Examples:
         annotations = {}
         if args.blast or args.blat or args.blast_all:
             logger.info("Step 5: Performing database searches...")
+            logger.debug(f"Total clusters: {len(clusters)}; Representatives selected: {len(representatives)}")
             searcher = BlastSearcher(output_dir=str(final_output_dir), force=args.force)
             
             if args.blast_all:
                 # Search ALL sequences (slower but more accurate)
-                logger.info(f"BLAST searching all {len(sequences)} sequences...")
+                logger.debug(f"BLAST searching all {len(sequences)} sequences...")
                 for seq_id, seq_record in sequences.items():
                     if args.blast or args.blast_all:
+                        logger.debug(f"BLAST searching sequence: {seq_id}")
                         annotations[seq_id] = searcher.blast_search(seq_record)
                     elif args.blat:
+                        logger.debug(f"BLAT searching sequence: {seq_id}")
                         annotations[seq_id] = searcher.blat_search(seq_record)
+                logger.debug("Completed BLAST searches for all sequences.")
             else:
+                logger.debug("BLAST searching cluster representatives only...")
                 # Search representative sequences only (faster)
                 logger.info(f"BLAST searching {len(representatives)} representative sequences...")
                 rep_annotations = {}
@@ -224,6 +230,8 @@ Examples:
                         for cluster_id, rep_seq in representatives.items():
                             rep_annotations[cluster_id] = searcher.blast_search(rep_seq)
                 else:
+                    logger.debug("Not using batch BLAST search.")
+                
                     # Single representative, batch disabled, or non-BLAST search - use individual searches
                     for cluster_id, rep_seq in representatives.items():
                         if args.blast:
@@ -232,7 +240,6 @@ Examples:
                             rep_annotations[cluster_id] = result
                         elif args.blat:
                             rep_annotations[cluster_id] = searcher.blat_search(rep_seq)
-                
                 # Propagate annotations to all sequences in each cluster
                 logger.info("Propagating annotations to all sequences in clusters...")
                 for cluster_id, seq_ids in clusters.items():

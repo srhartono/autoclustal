@@ -4,6 +4,9 @@ Create Demo Data for AutoClustal Visualization
 ==============================================
 
 Creates realistic demo data with organism annotations for testing the grapher.
+
+Created by Stella R. Hartono 2025
+
 """
 
 import pandas as pd

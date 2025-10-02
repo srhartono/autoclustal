@@ -4,12 +4,17 @@ AutoClustal Quick Visualizer
 ============================
 
 Quick launcher for creating comprehensive visualizations from AutoClustal results.
+
+Created by Stella R. Hartono 2025
+
 """
 
 import os
 import sys
 import argparse
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from bin import grapher
 
 def main():
     print("🧬 AutoClustal Visualization Tool")
@@ -69,9 +74,9 @@ def main():
     
     # Import and run the grapher
     try:
-        from grapher import AutoClustalVisualizer
+        # from autoclustal.bin.grapher import AutoClustalVisualizer
         
-        visualizer = AutoClustalVisualizer(selected_dir)
+        visualizer = grapher.AutoClustalVisualizer(selected_dir)
         visualizer.run_visualization()
         
     except ImportError as e:

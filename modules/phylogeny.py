@@ -21,7 +21,17 @@ try:
     BIOPYTHON_AVAILABLE = True
 except ImportError:
     BIOPYTHON_AVAILABLE = False
-
+    logging.warning("BioPython not available. Using basic sequence parsing.")
+    # Minimal Seq and SeqRecord classes for fallback
+    class Seq(str):
+        def __new__(cls, sequence):
+            return str.__new__(cls, sequence)
+    class SeqRecord:
+        def __init__(self, seq, id="", description="", letter_annotations=None):
+            self.seq = seq
+            self.id = id
+            self.description = description
+            self.letter_annotations = letter_annotations if letter_annotations is not None else {}
 try:
     import dendropy
     DENDROPY_AVAILABLE = True

@@ -8,6 +8,9 @@ Creates comprehensive visualizations including:
 2. Organism distribution bar plots
 3. Model organism analysis
 4. Summary statistics
+
+Created by Stella R. Hartono 2025
+
 """
 
 import os
@@ -85,6 +88,7 @@ GROUP_PATTERNS = {
     "synthetic": r"(?:synthetic|vector|plasmid|artificial|construct|chimera|chimeric)",
     "any_rDNA": r"(?:rdna|rrna|ribosomal\s?(dna|rna))"
 }
+
 
 COMPILED = {k: re.compile(v, flags=re.IGNORECASE) for k, v in GROUP_PATTERNS.items()}
 

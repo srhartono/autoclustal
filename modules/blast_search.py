@@ -6,6 +6,7 @@ Handles sequence similarity searches using BLAST and BLAT.
 Includes local and remote BLAST searches, and result parsing.
 """
 
+import sys
 import os
 import time
 import logging
@@ -24,7 +25,17 @@ try:
     BIOPYTHON_AVAILABLE = True
 except ImportError:
     BIOPYTHON_AVAILABLE = False
-
+    logging.warning("BioPython not available. Using basic sequence parsing.")
+    # Minimal Seq and SeqRecord classes for fallback
+    class Seq(str):
+        def __new__(cls, sequence):
+            return str.__new__(cls, sequence)
+    class SeqRecord:
+        def __init__(self, seq, id="", description="", letter_annotations=None):
+            self.seq = seq
+            self.id = id
+            self.description = description
+            self.letter_annotations = letter_annotations if letter_annotations is not None else {}
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -59,25 +70,30 @@ class BlastSearcher:
             self.logger.info(f"Raw BLAST responses will be saved to: {self.raw_blast_dir}")
         else:
             self.raw_blast_dir = None
-        
+        self.logger.debug(f"BLAST searcher initialized with max_hits={self.max_hits}, evalue_threshold={self.evalue_threshold}, force={self.force}")
         # Check for local BLAST installation
         self.local_blast_available = self._check_local_blast()
         
     def _make_safe_filename(self, seq_id: str) -> str:
+        self.logger.debug(f"Making safe filename for sequence ID: {seq_id}")
         """Convert sequence ID to safe filename."""
         # Replace problematic characters with underscores
         safe_name = re.sub(r'[<>:"/\\|?*]', '_', seq_id)
         # Limit length and remove any remaining problematic characters
         safe_name = safe_name[:50]  # Limit to 50 characters
+        self.logger.debug(f"Safe filename: {safe_name}")
         return safe_name
         
     def _check_local_blast(self) -> bool:
+        self.logger.debug("Checking for local BLAST+ installation...")
         """Check if local BLAST+ is available."""
         try:
             result = subprocess.run(['blastn', '-version'], 
                                   capture_output=True, text=True, timeout=10)
+            self.logger.debug(f"Local BLAST+ version check output: {result.stdout}")
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
+            self.logger.debug("Local BLAST+ not found.")
             return False
     
     def blast_search(self, sequence: SeqRecord, database: str = 'nr', 
@@ -98,12 +114,14 @@ class BlastSearcher:
         # Auto-detect BLAST program
         if program == 'auto':
             program = self._detect_blast_program(str(sequence.seq))
-        
+
         # Check for cached results first (unless force is True)
         if not self.force and self.raw_blast_dir:
+            self.logger.debug("Checking for cached BLAST results...")
             cached_result = self._check_cached_results(sequence.id, program, database)
             if cached_result:
-                self.logger.info(f"Using cached BLAST results for {sequence.id}")
+                self.logger.debug(f"Using cached BLAST results for {sequence.id}")
+
                 return cached_result
         
         try:
@@ -116,6 +134,7 @@ class BlastSearcher:
     
     def batch_blast_search(self, sequences: Dict[str, SeqRecord], database: str = 'nr', 
                           program: str = 'auto') -> Dict[str, Dict[str, Any]]:
+        self.logger.debug("Starting batch BLAST search...")
         """
         Perform batch BLAST search for multiple sequences in a single submission.
         
@@ -137,18 +156,19 @@ class BlastSearcher:
         # Check for cached results first
         results = {}
         uncached_sequences = {}
-        
+                        
+        self.logger.debug("Checking for cached BLAST results in batch search...")
         if not self.force and self.raw_blast_dir:
             for seq_id, seq_record in sequences.items():
                 cached_result = self._check_cached_results(seq_id, program, database)
                 if cached_result:
-                    self.logger.info(f"Using cached BLAST results for {seq_id}")
+                    self.logger.debug(f"Using cached BLAST results for {seq_id}")
                     results[seq_id] = cached_result
                 else:
                     uncached_sequences[seq_id] = seq_record
         else:
             uncached_sequences = sequences
-        
+                                
         # If all results are cached, return them
         if not uncached_sequences:
             self.logger.info("All sequences have cached results")
@@ -653,21 +673,23 @@ class BlastSearcher:
         # Check for both BioPython and web BLAST cached files
         cached_files = [
             self.raw_blast_dir / f"{safe_seq_id}_biopython.xml",
-            self.raw_blast_dir / f"{safe_seq_id}_web.xml"
+            self.raw_blast_dir / f"{safe_seq_id}_web.xml",
+            self.raw_blast_dir / f"{safe_seq_id}_batch.xml"
         ]
-        
+        self.logger.debug(f"Checking for cached files: {cached_files}")
         for cached_file in cached_files:
+            self.logger.debug(f"Looking for cached file: {cached_file}")
             if cached_file.exists():
                 try:
                     with open(cached_file, 'r') as f:
                         xml_content = f.read()
-                    
+                    self.logger.debug(f"Found cached file: {cached_file}")
                     # Parse the cached XML
                     hits = self._parse_blast_xml(xml_content)
                     
                     # Determine which method was used based on filename
-                    method = "biopython" if "_biopython.xml" in str(cached_file) else "web"
-                    
+                    method = "biopython" if "_biopython.xml" in str(cached_file) else "web" if "_web.xml" in str(cached_file) else "batch" if "_batch.xml" in str(cached_file) else "unknown"
+                    self.logger.debug(f"Parsed {len(hits)} hits from cached file: {cached_file}")
                     return {
                         'query_id': sequence_id,
                         'program': program,
@@ -681,7 +703,7 @@ class BlastSearcher:
                 except Exception as e:
                     self.logger.warning(f"Failed to parse cached results from {cached_file}: {e}")
                     continue
-        
+        self.logger.debug(f"No cached results found for {sequence_id}")
         return None
     
     def extract_organism_info(self, hit: Dict[str, Any]) -> Dict[str, str]:
